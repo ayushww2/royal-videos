@@ -26,8 +26,7 @@ export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
   soundVolume = 0.55,
 }) => {
   const frame = useCurrentFrame();
-  const {fps, width, height, durationInFrames} = useVideoConfig();
-  const t = frame / fps;
+  const {width, height, durationInFrames} = useVideoConfig();
 
   // Gate jitter (~frame weave)
   const jx =
@@ -146,29 +145,6 @@ export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
             pointerEvents: 'none',
           }}
         />
-
-        {/* Vertical scratches */}
-        {Array.from({length: 5}).map((_, i) => {
-          const x = 8 + random(`scx-${i}`) * 84;
-          const op =
-            0.08 +
-            0.12 * Math.abs(Math.sin(t * (2 + i) + i)) *
-              (random(`sco-${i}-${Math.floor(frame / 3)}`) > 0.35 ? 1 : 0.2);
-          return (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                left: `${x}%`,
-                top: 0,
-                width: 1 + (i % 2),
-                height: '100%',
-                background: `rgba(255,255,255,${op})`,
-                pointerEvents: 'none',
-              }}
-            />
-          );
-        })}
 
         {/* Dust / hair specs */}
         {Array.from({length: 18}).map((_, i) => {
