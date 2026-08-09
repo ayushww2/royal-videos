@@ -197,10 +197,9 @@ export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
       />
 
       <Audio
-        src={staticFile('sfx/film/8mm-projector-loop.wav')}
+        src={staticFile('sfx/film/8mm-film-reel.wav')}
         volume={soundVolume}
       />
-      <Audio src={staticFile('sfx/film/film-gate-4s.wav')} volume={soundVolume * 0.45} />
     </AbsoluteFill>
   );
 };
