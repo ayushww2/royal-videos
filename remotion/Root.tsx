@@ -47,6 +47,14 @@ import {
   PurpleLowerThirdPreview,
   PURPLE_LOWER_THIRD_PREVIEW_FRAMES,
 } from './PurpleLowerThirdPreview';
+import {
+  EightMmReelEffect,
+  EIGHT_MM_REEL_DURATION_FRAMES,
+} from './EightMmReelEffect';
+import {
+  BlurFillImageEffect,
+  BLUR_FILL_DURATION_FRAMES,
+} from './BlurFillImageEffect';
 import type {ProductionTimelineEvent} from './productionRegistry';
 
 /**
@@ -55,6 +63,22 @@ import type {ProductionTimelineEvent} from './productionRegistry';
  */
 export const RemotionRoot: React.FC = () => (
   <>
+    <Composition
+      id="EightMmReel"
+      component={EightMmReelEffect}
+      durationInFrames={EIGHT_MM_REEL_DURATION_FRAMES}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="BlurFillImage"
+      component={BlurFillImageEffect}
+      durationInFrames={BLUR_FILL_DURATION_FRAMES}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
     <Composition
       id="PurpleLowerThirdPreview"
       component={PurpleLowerThirdPreview}
