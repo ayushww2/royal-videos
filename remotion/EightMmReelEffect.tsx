@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   AbsoluteFill,
-  Audio,
+  Html5Audio,
   Img,
   interpolate,
   random,
@@ -26,7 +26,7 @@ export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
   soundVolume = 1,
 }) => {
   const frame = useCurrentFrame();
-  const {width, height, durationInFrames} = useVideoConfig();
+  const {fps, width, height, durationInFrames} = useVideoConfig();
 
   // Gate jitter (~frame weave)
   const jx =
@@ -58,8 +58,21 @@ export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
   const gateH = height * 0.78;
   const stripLeft = (width - gateW) / 2 - 86;
 
+  // Visual meter synced to gate clicks (~18fps) so audio presence is obvious
+  const gatePulse = Math.pow(
+    Math.max(0, Math.sin(frame * ((18 * Math.PI * 2) / fps))),
+    8,
+  );
+
   return (
     <AbsoluteFill style={{backgroundColor: '#050302'}}>
+      {/* Html5Audio + mp3 encodes reliably into the MP4 */}
+      <Html5Audio
+        src={staticFile('sfx/film/8mm-film-reel.mp3')}
+        volume={soundVolume}
+        startFrom={0}
+      />
+
       {/* Film strip body */}
       <AbsoluteFill
         style={{
@@ -127,7 +140,6 @@ export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
           }}
         />
 
-        {/* Warm grade wash */}
         <AbsoluteFill
           style={{
             background:
@@ -137,7 +149,6 @@ export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
           }}
         />
 
-        {/* Vignette inside gate */}
         <AbsoluteFill
           style={{
             background:
@@ -146,7 +157,6 @@ export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
           }}
         />
 
-        {/* Dust / hair specs */}
         {Array.from({length: 18}).map((_, i) => {
           const seed = `dust-${i}-${Math.floor(frame / 4)}`;
           return (
@@ -170,7 +180,6 @@ export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
           );
         })}
 
-        {/* Grain overlay */}
         <AbsoluteFill
           style={{
             opacity: 0.22,
@@ -187,7 +196,6 @@ export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
         />
       </div>
 
-      {/* Outer film edge darkness */}
       <AbsoluteFill
         style={{
           background:
@@ -196,11 +204,39 @@ export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
         }}
       />
 
-      <Audio
-        src={staticFile('sfx/film/8mm-film-reel.wav')}
-        volume={1}
-        startFrom={0}
-      />
+      {/* On-screen reel SFX indicator (pulses with projector gate) */}
+      <div
+        style={{
+          position: 'absolute',
+          right: 36,
+          bottom: 36,
+          padding: '10px 16px',
+          borderRadius: 8,
+          background: 'rgba(0,0,0,0.72)',
+          border: '1px solid rgba(255,180,80,0.55)',
+          color: '#ffd27a',
+          fontFamily: 'Courier New, monospace',
+          fontWeight: 700,
+          fontSize: 22,
+          letterSpacing: 1.5,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          opacity: 0.95,
+        }}
+      >
+        <div
+          style={{
+            width: 14,
+            height: 14,
+            borderRadius: 99,
+            background: `rgba(255,140,40,${0.35 + gatePulse * 0.65})`,
+            boxShadow:
+              gatePulse > 0.4 ? '0 0 12px rgba(255,160,40,0.9)' : 'none',
+          }}
+        />
+        REEL SFX
+      </div>
     </AbsoluteFill>
   );
 };
