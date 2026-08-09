@@ -198,10 +198,12 @@ export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
 
       <Audio
         src={staticFile('sfx/film/8mm-film-reel.wav')}
-        volume={soundVolume}
+        volume={1}
+        startFrom={0}
       />
     </AbsoluteFill>
   );
 };
 
-export const EIGHT_MM_REEL_DURATION_FRAMES = 120; // 4s @ 30fps
+export const EIGHT_MM_REEL_DURATION_FRAMES = 120; // exactly 4.00s @ 30fps
+export const EIGHT_MM_REEL_DURATION_SEC = 4;
