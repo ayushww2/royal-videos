@@ -5,6 +5,7 @@ import {
   selectedPresetRegistry,
   normalizeSelectedEventProps,
   validateSelectedEvent,
+  ClassicPurpleWhiteLowerThird,
   type SelectedPresetId as LegacySelectedPresetId,
   type SelectedTimelineEvent as LegacySelectedTimelineEvent,
 } from "./selected/SelectedVisualPack";
@@ -48,6 +49,8 @@ export const productionPresetRegistry: Record<
   // Mystery finalize: text-fitting classic blue LT (selected pack outline style).
   "01_classic_blue_white_lower_third":
     selectedPresetRegistry["01_classic_blue_white_lower_third"],
+  // Purple LT uses the same spring/outline animation as classic blue.
+  "29_classic_purple_white_lower_third": ClassicPurpleWhiteLowerThird,
 };
 
 export const PRODUCTION_PRESET_ORDER = [

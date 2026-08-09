@@ -42,6 +42,7 @@ export type ClassicBlueWhiteLowerThirdProps = {
   durationFrames?: number;
   position?: 'bottom_left' | 'bottom_center';
   fillColor?: string;
+  fillColorEnd?: string;
   textColor?: string;
   outlineColor?: string;
 };
@@ -54,6 +55,7 @@ export const ClassicBlueWhiteLowerThird: React.FC<
   durationFrames = 90,
   position = 'bottom_left',
   fillColor = '#1E3F8F',
+  fillColorEnd = '#102F72',
   textColor = '#FFFFFF',
   outlineColor = '#FFFFFF',
 }) => {
@@ -81,8 +83,8 @@ export const ClassicBlueWhiteLowerThird: React.FC<
   const maxLength = Math.max(primaryText.length, secondaryText?.length ?? 0);
   // Fit bar tightly to short 2–3 word titles; grow for longer copy.
   const boxWidth = Math.min(
-    width * 0.67,
-    Math.max(260, 140 + maxLength * 22 + (secondaryText ? 40 : 0)),
+    width * 0.72,
+    Math.max(280, 168 + maxLength * 28 + (secondaryText ? 40 : 0)),
   );
   const boxHeight = secondaryText ? 110 : 78;
 
@@ -121,7 +123,7 @@ export const ClassicBlueWhiteLowerThird: React.FC<
             top: 0,
             width: boxWidth,
             height: boxHeight,
-            background: `linear-gradient(180deg, ${fillColor} 0%, #102F72 100%)`,
+            background: `linear-gradient(180deg, ${fillColor} 0%, ${fillColorEnd} 100%)`,
             boxShadow: '0 15px 40px rgba(0,0,0,0.5)',
             boxSizing: 'border-box',
             padding: secondaryText ? '15px 22px 12px' : '14px 22px',
@@ -168,6 +170,21 @@ export const ClassicBlueWhiteLowerThird: React.FC<
     </AbsoluteFill>
   );
 };
+
+/** Same slide/outline animation as classic blue — purple fill, white type. */
+export type ClassicPurpleWhiteLowerThirdProps = ClassicBlueWhiteLowerThirdProps;
+
+export const ClassicPurpleWhiteLowerThird: React.FC<
+  ClassicPurpleWhiteLowerThirdProps
+> = (props) => (
+  <ClassicBlueWhiteLowerThird
+    {...props}
+    fillColor={props.fillColor ?? '#6B2CB8'}
+    fillColorEnd={props.fillColorEnd ?? '#3D1578'}
+    textColor={props.textColor ?? '#FFFFFF'}
+    outlineColor={props.outlineColor ?? '#FFFFFF'}
+  />
+);
 
 export type SecondaryBlueLowerThirdProps = {
   primaryText: string;

@@ -43,6 +43,10 @@ import {
   MysteryV3FinalPreview,
   MYSTERY_V3_FINAL_PREVIEW_DURATION_SEC,
 } from './MysteryV3FinalPreview';
+import {
+  PurpleLowerThirdPreview,
+  PURPLE_LOWER_THIRD_PREVIEW_FRAMES,
+} from './PurpleLowerThirdPreview';
 import type {ProductionTimelineEvent} from './productionRegistry';
 
 /**
@@ -51,6 +55,14 @@ import type {ProductionTimelineEvent} from './productionRegistry';
  */
 export const RemotionRoot: React.FC = () => (
   <>
+    <Composition
+      id="PurpleLowerThirdPreview"
+      component={PurpleLowerThirdPreview}
+      durationInFrames={PURPLE_LOWER_THIRD_PREVIEW_FRAMES}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
     <Composition
       id="MysteryV3FinalPreview"
       component={MysteryV3FinalPreview}
