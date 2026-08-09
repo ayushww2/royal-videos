@@ -1,0 +1,57 @@
+{
+  "timeline": {
+    "background": "#0c0103",
+    "tracks": [
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "html5",
+              "html": "<div class=\"stage\"><div class=\"fine\"></div><div class=\"major\"></div><div class=\"circle\"></div><div class=\"frame\"></div></div>",
+              "css": "html,body{margin:0;padding:0;width:1920px;height:1080px;overflow:hidden;background:#0c0103}.stage{position:relative;width:1920px;height:1080px;background:radial-gradient(circle at 50% 50%,#3a0710 0%,#160205 48%,#090103 100%)}.fine,.major{position:absolute;inset:0}.fine{background-image:linear-gradient(rgba(255,255,255,.15) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.15) 1px,transparent 1px);background-size:48px 48px}.major{background-image:linear-gradient(rgba(255,255,255,.24) 2px,transparent 2px),linear-gradient(90deg,rgba(255,255,255,.24) 2px,transparent 2px);background-size:240px 240px;opacity:.25}.circle{position:absolute;left:510px;top:90px;width:900px;height:900px;border-radius:50%;border:2px solid rgba(255,255,255,.11);box-shadow:0 0 0 95px rgba(255,52,77,.035),0 0 0 190px rgba(255,52,77,.02)}.frame{position:absolute;left:230px;top:135px;width:1460px;height:810px;border:4px solid #fff;box-shadow:0 30px 92px rgba(0,0,0,.58),0 0 16px rgba(255,255,255,.08);opacity:0;transform:scale(.975)}.frame:after{content:'';position:absolute;inset:16px;border:1px solid rgba(255,255,255,.16)}",
+              "js": "const tl=gsap.timeline();tl.to('.fine',{backgroundPosition:'48px 48px',duration:5,ease:'none'},0).to('.major',{backgroundPosition:'-48px -48px',duration:5,ease:'none'},0).to('.frame',{opacity:1,scale:1,duration:.58,ease:'power3.out'},0).to('.circle',{rotation:8,duration:5,ease:'none'},0);"
+            },
+            "start": 0,
+            "length": 5,
+            "width": 1920,
+            "height": 1080,
+            "fit": "none"
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "image",
+              "src": "{{IMAGE_URL}}"
+            },
+            "start": 0,
+            "length": 5,
+            "width": 1438,
+            "height": 788,
+            "fit": "crop",
+            "position": "center",
+            "transition": {
+              "in": "fadeFast",
+              "out": "fadeFast"
+            },
+            "effect": "zoomInSlow"
+          }
+        ]
+      }
+    ]
+  },
+  "output": {
+    "format": "mp4",
+    "resolution": "1080",
+    "fps": 25,
+    "quality": "high"
+  },
+  "merge": [
+    {
+      "find": "IMAGE_URL",
+      "replace": "https://example.com/image.jpg"
+    }
+  ]
+}

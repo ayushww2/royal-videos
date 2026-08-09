@@ -1,0 +1,12 @@
+node_modules
+client/dist
+storage
+data
+.git
+.railway
+.env
+.env.*
+!.env.example
+*.log
+.tmp-*
+agent-transcripts

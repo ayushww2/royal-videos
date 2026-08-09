@@ -1,0 +1,34 @@
+name: Push Serverless image to ttl.sh (public temp)
+
+# Anonymous public registry for RunPod pulls when GHCR is private.
+# Image expires (~24h). For production: make GHCR package public or add RunPod registry auth.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  push-ttl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push to ttl.sh
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.serverless
+          push: true
+          tags: ttl.sh/documentary-remotion-serverless-${{ github.repository_owner }}:24h
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Print image
+        run: echo "IMAGE=ttl.sh/documentary-remotion-serverless-${{ github.repository_owner }}:24h"

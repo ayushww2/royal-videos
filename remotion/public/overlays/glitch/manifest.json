@@ -1,0 +1,78 @@
+{
+  "niche": "Royal v2",
+  "source": "free-glitch-overlays-1080p (vidssave pack)",
+  "sourceMeta": {
+    "durationSec": 18.57,
+    "fps": 30,
+    "resolution": "1920x1080",
+    "hasAudio": true
+  },
+  "clipDurationSec": 0.75,
+  "loudnessTargetLufs": -28,
+  "blendMode": "screen",
+  "notes": "Sparse chapter/crisis/reveal overlays only. Black bg → screen blend. Audio ducked under VO.",
+  "selected": {
+    "glitch_scan_a": {
+      "file": "glitch_scan_a.mp4",
+      "role": "approved",
+      "use": "Blue scan-band flash; rare cut accent",
+      "sourceAudio": false,
+      "pairedSfx": "soft_whip",
+      "defaultVolume": 0.2,
+      "maxDurationSec": 0.75
+    },
+    "glitch_scan_b": {
+      "file": "glitch_scan_b.mp4",
+      "role": "approved",
+      "use": "Cyan band + white bar flash",
+      "sourceAudio": false,
+      "pairedSfx": "soft_whip",
+      "defaultVolume": 0.2,
+      "maxDurationSec": 0.75
+    },
+    "glitch_line_burst": {
+      "file": "glitch_line_burst.mp4",
+      "role": "approved",
+      "use": "Subtle cyan line burst — best screen overlay",
+      "sourceAudio": true,
+      "defaultVolume": 0.18,
+      "maxDurationSec": 0.75
+    },
+    "glitch_static": {
+      "file": "glitch_static.mp4",
+      "role": "approved",
+      "use": "Full-frame static snow — rare high-impact only",
+      "sourceAudio": false,
+      "pairedSfx": "cinematic_hit",
+      "defaultVolume": 0.16,
+      "maxDurationSec": 0.75,
+      "intensity": "high"
+    },
+    "glitch_block_slice": {
+      "file": "glitch_block_slice.mp4",
+      "role": "approved",
+      "use": "Bottom digital block slice + vertical lines",
+      "sourceAudio": true,
+      "defaultVolume": 0.18,
+      "maxDurationSec": 0.75
+    }
+  },
+  "rejected": {
+    "glitch_next_card": {
+      "file": "glitch_next_card.mp4",
+      "reason": "Baked-in NEXT text — YouTube title-card / meme"
+    },
+    "glitch_rf_card": {
+      "file": "glitch_rf_card.mp4",
+      "reason": "Baked-in RF lettering — broadcast graphic, not doc overlay"
+    },
+    "glitch_noref_card": {
+      "file": "glitch_noref_card.mp4",
+      "reason": "Baked-in NO REF text — too meme/YouTube"
+    },
+    "glitch_error_signal": {
+      "file": "glitch_error_signal.mp4",
+      "reason": "Baked-in ERROR-SIGNAL text — literal error card"
+    }
+  }
+}

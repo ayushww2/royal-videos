@@ -1,0 +1,14 @@
+# Keep CLI `railway up` under the upload timeout (~45MB / 35s).
+# GitHub-connected deploys still get full repo contents from git.
+remotion/public/music/**/*.mp3
+remotion/public/overlays/**/*.mp4
+remotion/public/sfx/**/*.wav
+remotion/public/reference/
+data/
+storage/
+.tmp*
+*.tgz
+*.zip
+node_modules/
+client/dist/
+.git/

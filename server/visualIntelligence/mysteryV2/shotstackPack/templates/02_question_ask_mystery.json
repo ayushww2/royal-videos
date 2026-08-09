@@ -1,0 +1,65 @@
+{
+  "timeline": {
+    "background": "#03070c",
+    "tracks": [
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "html5",
+              "html": "<div class=\"stage\"><div class=\"shade\"></div><div class=\"question\" id=\"q\">{{QUESTION}}</div><div class=\"rule\"></div><div class=\"sub\" id=\"s\">{{SUBQUESTION}}</div><div class=\"beam\"></div></div>",
+              "css": "html,body{margin:0;padding:0;width:1920px;height:1080px;overflow:hidden;background:transparent;font-family:system-ui,Arial,sans-serif}.stage{position:relative;width:1920px;height:1080px}.shade{position:absolute;inset:0;background:radial-gradient(circle at 50% 42%,rgba(8,17,31,.16),rgba(1,4,8,.76) 75%),linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.38))}.question{position:absolute;left:150px;right:150px;top:365px;height:135px;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;font-size:90px;font-weight:900;letter-spacing:1px;text-transform:uppercase;text-shadow:0 8px 26px rgba(0,0,0,.55);opacity:0;transform:translateY(26px)}.rule{position:absolute;left:610px;top:525px;width:700px;height:8px;border-radius:999px;background:linear-gradient(90deg,#ff405a,#ff8998,#ff405a);box-shadow:0 0 18px rgba(255,64,90,.42);opacity:0;transform:scaleX(.08)}.sub{position:absolute;left:220px;right:220px;top:570px;text-align:center;color:rgba(255,255,255,.94);font-size:34px;font-weight:750;letter-spacing:3px;text-transform:uppercase;opacity:0;transform:translateY(16px)}.beam{position:absolute;left:130px;top:-160px;width:170px;height:1400px;transform:rotate(11deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent)}",
+              "js": "function fit(id,max,min){const e=document.getElementById(id);let z=max;e.style.fontSize=z+'px';while(e.scrollWidth>e.clientWidth&&z>min){z--;e.style.fontSize=z+'px'}}fit('q',90,46);fit('s',34,20);const tl=gsap.timeline();tl.to('#q',{opacity:1,y:0,duration:.62,ease:'power3.out'},.16).to('.rule',{opacity:1,scaleX:1,duration:.5,ease:'power3.out'},.46).to('#s',{opacity:1,y:0,duration:.44,ease:'power2.out'},.7).to('.beam',{x:90,duration:5,ease:'none'},0);"
+            },
+            "start": 0,
+            "length": 5,
+            "width": 1920,
+            "height": 1080,
+            "fit": "none"
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "image",
+              "src": "{{BACKGROUND_IMAGE}}"
+            },
+            "start": 0,
+            "length": 5,
+            "width": 1920,
+            "height": 1080,
+            "fit": "crop",
+            "position": "center",
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            },
+            "effect": "zoomInSlow"
+          }
+        ]
+      }
+    ]
+  },
+  "output": {
+    "format": "mp4",
+    "resolution": "1080",
+    "fps": 25,
+    "quality": "high"
+  },
+  "merge": [
+    {
+      "find": "QUESTION",
+      "replace": "WHO CLOSED THE AREA?"
+    },
+    {
+      "find": "SUBQUESTION",
+      "replace": "AND WHAT WERE THEY TRYING TO HIDE?"
+    },
+    {
+      "find": "BACKGROUND_IMAGE",
+      "replace": "https://example.com/background.jpg"
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "timeline": {
+    "background": "#020202",
+    "tracks": [
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "html5",
+              "html": "<div class=\"stage\"><div class=\"left\"></div><div class=\"right\"></div><div class=\"soft\"></div></div>",
+              "css": "html,body{margin:0;padding:0;width:1920px;height:1080px;overflow:hidden;background:#020202}.stage{position:relative;width:1920px;height:1080px;background:radial-gradient(circle at 50% 50%,#111 0%,#020202 68%)}.left,.right{position:absolute;top:325px;width:760px;height:430px;border:3px solid rgba(255,255,255,.96);border-radius:22px;box-shadow:0 24px 62px rgba(0,0,0,.52),0 0 16px rgba(255,255,255,.08);opacity:0}.left{left:140px;transform:translateX(-26px)}.right{right:140px;transform:translateX(26px)}.soft{position:absolute;left:930px;top:345px;width:60px;height:390px;background:radial-gradient(ellipse,rgba(255,255,255,.04),transparent 70%)}",
+              "js": "gsap.to('.left',{opacity:1,x:0,duration:.55,ease:'power3.out'},0);gsap.to('.right',{opacity:1,x:0,duration:.55,ease:'power3.out'},.12);"
+            },
+            "start": 0,
+            "length": 5,
+            "width": 1920,
+            "height": 1080,
+            "fit": "none"
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "image",
+              "src": "{{LEFT_IMAGE}}"
+            },
+            "start": 0,
+            "length": 5,
+            "width": 742,
+            "height": 412,
+            "fit": "crop",
+            "position": "center",
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            },
+            "effect": "zoomInSlow",
+            "offset": {
+              "x": -0.219,
+              "y": 0
+            }
+          },
+          {
+            "asset": {
+              "type": "image",
+              "src": "{{RIGHT_IMAGE}}"
+            },
+            "start": 0,
+            "length": 5,
+            "width": 742,
+            "height": 412,
+            "fit": "crop",
+            "position": "center",
+            "transition": {
+              "in": "fade",
+              "out": "fade"
+            },
+            "effect": "zoomInSlow",
+            "offset": {
+              "x": 0.219,
+              "y": 0
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "output": {
+    "format": "mp4",
+    "resolution": "1080",
+    "fps": 25,
+    "quality": "high"
+  },
+  "merge": [
+    {
+      "find": "LEFT_IMAGE",
+      "replace": "https://example.com/left.jpg"
+    },
+    {
+      "find": "RIGHT_IMAGE",
+      "replace": "https://example.com/right.jpg"
+    }
+  ]
+}

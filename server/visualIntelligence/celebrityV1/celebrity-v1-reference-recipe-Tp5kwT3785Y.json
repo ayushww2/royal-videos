@@ -1,0 +1,74 @@
+{
+  "videoId": "Tp5kwT3785Y",
+  "url": "https://www.youtube.com/watch?v=Tp5kwT3785Y",
+  "title": "Things Aren't Looking Good For Pastor Joel Osteen",
+  "channel": "The Unseen",
+  "fullDurationSec": 2048,
+  "sampled": [
+    { "label": "opener_0_3", "startSec": 0, "endSec": 180 },
+    { "label": "mid_10_13", "startSec": 600, "endSec": 780 },
+    { "label": "late_20_23", "startSec": 1200, "endSec": 1380 }
+  ],
+  "sceneDetect": {
+    "threshold": 0.22,
+    "mergeGapSec": 0.45,
+    "opener": {
+      "cuts": 29,
+      "cutsPerMin": 9.67,
+      "avgHoldSec": 6.0,
+      "medianHoldSec": 5.2,
+      "p25": 3.7,
+      "p75": 7.67
+    },
+    "mid": {
+      "cuts": 39,
+      "cutsPerMin": 13.0,
+      "avgHoldSec": 4.5,
+      "medianHoldSec": 4.4,
+      "p25": 2.8,
+      "p75": 5.0
+    },
+    "late": {
+      "cuts": 34,
+      "cutsPerMin": 11.33,
+      "avgHoldSec": 5.14,
+      "medianHoldSec": 5.0,
+      "p25": 2.7,
+      "p75": 7.1
+    }
+  },
+  "recipeTargets": {
+    "cutsPerMinute": { "min": 9, "target": 11, "max": 13 },
+    "holdSec": { "min": 3.5, "target": 5.0, "max": 7.5 },
+    "rawFootagePercent": {
+      "min": 22,
+      "target": 30,
+      "max": 38,
+      "referenceEstimateFromFrames": 60
+    },
+    "lowerThirdsPerMinute": { "min": 0.4, "target": 0.8, "max": 1.4 },
+    "effectsPerMinute": { "min": 1.5, "target": 2.5, "max": 3.5 },
+    "transitions": { "cut": 0.92, "dissolve": 0.03, "splitOrFramed": 0.05 },
+    "zoom": {
+      "stillsKenBurns": true,
+      "zoomInShare": 0.65,
+      "zoomOutShare": 0.2,
+      "staticShare": 0.15,
+      "intensity": 0.06
+    }
+  },
+  "qualitative": {
+    "opener": "Subject face / archival interview immediately; OWN/talk-show watermarks common; bold captions",
+    "lowerThirdStyle": "Sparse dark-blue name plate bottom-left; more often small top-left name ID",
+    "textOnScreen": "Bold white ALL-CAPS with black outline (dynamic captions); year markers in blue boxes",
+    "musicSfx": "Documentary bed under VO; sparse hits; not wall-to-wall SFX",
+    "framedInset": "Occasional textured brown border with inset archival clip + drop shadow",
+    "splitScreen": "Occasional person|theme juxtaposition (e.g. speaker vs money stacks)"
+  },
+  "userApprovalGate": {
+    "defaultsOn": true,
+    "envFlag": "CELEBRITY_V1_REFERENCE_EDIT",
+    "note": "After user approves, every new Celebrity v1 job uses these defaults automatically. Flag defaults ON."
+  },
+  "analyzedAt": "2026-07-18"
+}

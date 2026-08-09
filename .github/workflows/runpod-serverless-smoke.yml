@@ -1,0 +1,112 @@
+name: RunPod Serverless smoke (GHCR auth)
+
+# Uses short-lived GITHUB_TOKEN as RunPod registry auth so workers can pull
+# private GHCR, then submits a tiny Remotion smoke job.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Register GHCR auth + smoke
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          GH_USER: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ENDPOINT_ID: x002w2cpc23m38
+          IMAGE: ghcr.io/${{ github.repository_owner }}/new-video-ai-remotion-serverless:latest
+        run: |
+          set -euo pipefail
+          if [ -z "${RUNPOD_API_KEY:-}" ]; then
+            echo "Missing repo secret RUNPOD_API_KEY"
+            exit 1
+          fi
+          AUTH_NAME="ghcr-actions-$(date +%s)"
+          AUTH_JSON=$(curl -sS -X POST "https://rest.runpod.io/v1/containerregistryauth" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"${AUTH_NAME}\",\"username\":\"${GH_USER}\",\"password\":\"${GH_TOKEN}\"}")
+          echo "auth_create=$AUTH_JSON"
+          AUTH_ID=$(echo "$AUTH_JSON" | jq -r .id)
+          test -n "$AUTH_ID" && test "$AUTH_ID" != "null"
+
+          TMPL_NAME="doc-smoke-$(date +%s | tail -c 6)"
+          # Pull env from existing endpoint template if possible — minimal env for smoke
+          TMPL=$(curl -sS -X POST "https://rest.runpod.io/v1/templates" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"name\": \"${TMPL_NAME}\",
+              \"imageName\": \"${IMAGE}\",
+              \"isServerless\": true,
+              \"containerDiskInGb\": 40,
+              \"volumeInGb\": 0,
+              \"containerRegistryAuthId\": \"${AUTH_ID}\",
+              \"dockerStartCmd\": [\"python3\", \"-u\", \"serverless/handler.py\"],
+              \"env\": {
+                \"RENDERER\": \"remotion\",
+                \"REMOTION_LAMBDA\": \"0\",
+                \"RUNPOD_RENDER\": \"0\",
+                \"REMOTION_CONCURRENCY\": \"4\",
+                \"STORAGE_PATH\": \"/app/storage\",
+                \"NODE_ENV\": \"production\"
+              }
+            }")
+          echo "tmpl=$(echo "$TMPL" | jq -c '{id,.imageName,.containerRegistryAuthId}')"
+          TMPL_ID=$(echo "$TMPL" | jq -r .id)
+
+          curl -sS -X PATCH "https://rest.runpod.io/v1/endpoints/${ENDPOINT_ID}" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"templateId\": \"${TMPL_ID}\",
+              \"gpuTypeIds\": [\"NVIDIA GeForce RTX 3090\",\"NVIDIA GeForce RTX 4090\",\"NVIDIA RTX A5000\",\"NVIDIA L4\"],
+              \"workersMax\": 3,
+              \"workersMin\": 0,
+              \"idleTimeout\": 120,
+              \"scalerType\": \"REQUEST_COUNT\",
+              \"scalerValue\": 1
+            }" > /tmp/ep.json
+          echo "endpoint=$(jq -c '{id,templateId,workersMax,gpuTypeIds}' /tmp/ep.json)"
+
+          # cancel queued junk
+          curl -sS "https://api.runpod.ai/v2/${ENDPOINT_ID}/purge-queue" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" -X POST || true
+
+          RUN=$(curl -sS -X POST "https://api.runpod.ai/v2/${ENDPOINT_ID}/run" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"input\":{\"jobId\":\"smoke-gh-${GITHUB_RUN_ID}\",\"smoke\":true}}")
+          echo "run=$RUN"
+          RUN_ID=$(echo "$RUN" | jq -r .id)
+
+          for i in $(seq 1 80); do
+            sleep 15
+            ST=$(curl -sS "https://api.runpod.ai/v2/${ENDPOINT_ID}/status/${RUN_ID}" \
+              -H "Authorization: Bearer ${RUNPOD_API_KEY}")
+            STATUS=$(echo "$ST" | jq -r .status)
+            PROG=$(echo "$ST" | jq -r '.progress // empty')
+            echo "t=$((i*15))s status=$STATUS progress=$PROG"
+            echo "$ST" | jq -c '{status,progress,error,output}' || true
+            if [ "$STATUS" = "COMPLETED" ]; then
+              echo "SMOKE_PASS runId=$RUN_ID"
+              echo "$ST" | jq .
+              exit 0
+            fi
+            if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELLED" ] || [ "$STATUS" = "TIMED_OUT" ]; then
+              echo "SMOKE_FAIL"
+              echo "$ST" | jq .
+              exit 1
+            fi
+          done
+          echo "SMOKE_TIMEOUT"
+          exit 1

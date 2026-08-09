@@ -1,0 +1,15 @@
+node_modules/
+dist/
+storage/
+data/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+client/dist/
+uploads/
+.railway/
+.tmp*/
+.tmp-*.cjs
+.tmp-*.js

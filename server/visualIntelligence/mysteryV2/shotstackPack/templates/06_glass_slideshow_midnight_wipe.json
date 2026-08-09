@@ -1,0 +1,116 @@
+{
+  "timeline": {
+    "background": "#020305",
+    "tracks": [
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "html5",
+              "html": "<div class=\"stage\"><div class=\"shadow\"></div><div class=\"frame\"><div class=\"inner\"></div><div class=\"shine\"></div><div class=\"corner tl\"></div><div class=\"corner br\"></div></div></div>",
+              "css": "html,body{margin:0;padding:0;width:1920px;height:1080px;overflow:hidden;background:transparent}\n.stage{position:relative;width:1920px;height:1080px}\n.shadow{position:absolute;left:185px;top:130px;width:1550px;height:870px;border-radius:34px;box-shadow:0 40px 100px rgba(0,0,0,.58),0 0 46px #5db6ff55}\n.frame{position:absolute;left:185px;top:105px;width:1550px;height:870px;border-radius:34px;border:2px solid rgba(255,255,255,.72);box-shadow:inset 0 0 0 1px #5db6ff99,inset 0 1px 0 rgba(255,255,255,.25);opacity:0;transform:translateY(22px) scale(.985);overflow:hidden}\n.inner{position:absolute;inset:14px;border:1px solid rgba(255,255,255,.055);border-radius:24px}\n.shine{position:absolute;top:-150px;left:-330px;width:72px;height:1250px;transform:skewX(-16deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.055),transparent);mix-blend-mode:screen}\n.corner{position:absolute;width:90px;height:90px;border-color:#5db6ff;opacity:.8}\n.corner.tl{left:24px;top:24px;border-left:3px solid #5db6ff;border-top:3px solid #5db6ff}\n.corner.br{right:24px;bottom:24px;border-right:3px solid #5db6ff;border-bottom:3px solid #5db6ff}",
+              "js": "const tl=gsap.timeline();tl.to('.frame',{opacity:1,y:0,scale:1,duration:.6,ease:'power3.out'},0).to('.shine',{x:2300,duration:1.25,ease:'power2.inOut'},.28).to('.frame',{y:-4,duration:3.8,ease:'sine.inOut'},1.2).to('.frame',{y:0,duration:3.6,ease:'sine.inOut'},5.0);"
+            },
+            "start": 0,
+            "length": 9,
+            "width": 1920,
+            "height": 1080,
+            "fit": "none"
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "image",
+              "src": "{{IMAGE_1}}"
+            },
+            "start": 0,
+            "length": 3,
+            "width": 1550,
+            "height": 870,
+            "fit": "crop",
+            "position": "center",
+            "transition": {
+              "in": "wipeRightSlow",
+              "out": "fadeFast"
+            },
+            "effect": "zoomOutSlow"
+          },
+          {
+            "asset": {
+              "type": "image",
+              "src": "{{IMAGE_2}}"
+            },
+            "start": 3,
+            "length": 3,
+            "width": 1550,
+            "height": 870,
+            "fit": "crop",
+            "position": "center",
+            "transition": {
+              "in": "wipeRightSlow",
+              "out": "fadeFast"
+            },
+            "effect": "zoomOutSlow"
+          },
+          {
+            "asset": {
+              "type": "image",
+              "src": "{{IMAGE_3}}"
+            },
+            "start": 6,
+            "length": 3,
+            "width": 1550,
+            "height": 870,
+            "fit": "crop",
+            "position": "center",
+            "transition": {
+              "in": "wipeRightSlow",
+              "out": "fadeFast"
+            },
+            "effect": "zoomOutSlow"
+          }
+        ]
+      },
+      {
+        "clips": [
+          {
+            "asset": {
+              "type": "html5",
+              "html": "<div class=\"stage\"><div class=\"orb a\"></div><div class=\"orb b\"></div><div class=\"grain\"></div></div>",
+              "css": "html,body{margin:0;padding:0;width:1920px;height:1080px;overflow:hidden;background:#020812}\n.stage{position:relative;width:1920px;height:1080px;background:radial-gradient(circle at 50% 44%,#06172c 0%,#020812 57%,#010203 100%)}\n.orb{position:absolute;border-radius:50%;filter:blur(72px);opacity:.46}\n.orb.a{width:820px;height:820px;left:80px;top:-280px;background:#2f8fff}\n.orb.b{width:900px;height:900px;right:-260px;bottom:-390px;background:#78c9ff;opacity:.23}\n.grain{position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.08) .7px,transparent .7px);background-size:7px 7px;opacity:.11;mix-blend-mode:screen}",
+              "js": "const tl=gsap.timeline();tl.to('.a',{x:120,y:50,duration:9,ease:'sine.inOut'},0).to('.b',{x:-100,y:-40,duration:9,ease:'sine.inOut'},0);"
+            },
+            "start": 0,
+            "length": 9,
+            "width": 1920,
+            "height": 1080,
+            "fit": "none"
+          }
+        ]
+      }
+    ]
+  },
+  "output": {
+    "format": "mp4",
+    "resolution": "1080",
+    "fps": 25,
+    "quality": "high"
+  },
+  "merge": [
+    {
+      "find": "IMAGE_1",
+      "replace": "https://example.com/image-1.jpg"
+    },
+    {
+      "find": "IMAGE_2",
+      "replace": "https://example.com/image-2.jpg"
+    },
+    {
+      "find": "IMAGE_3",
+      "replace": "https://example.com/image-3.jpg"
+    }
+  ]
+}

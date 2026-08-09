@@ -1,0 +1,70 @@
+{
+  "niche": "Royal v2",
+  "loudnessTargetLufs": -28,
+  "notes": "International documentary transition bed — under VO, scene-change only",
+  "selected": {
+    "soft_whip": {
+      "file": "soft_whip.wav",
+      "role": "soft_cut",
+      "use": "Default subtle scene-change whoosh",
+      "defaultVolume": 0.22,
+      "maxDurationSec": 0.7
+    },
+    "soft_swipe": {
+      "file": "soft_swipe.wav",
+      "role": "soft_cut",
+      "use": "Alternate soft cut (rotate with whip)",
+      "defaultVolume": 0.2,
+      "maxDurationSec": 0.5
+    },
+    "slide_change": {
+      "file": "slide_change.wav",
+      "role": "soft_cut",
+      "use": "Soft still/slide change",
+      "defaultVolume": 0.24,
+      "maxDurationSec": 1.0
+    },
+    "camera_shutter": {
+      "file": "camera_shutter.wav",
+      "role": "accent",
+      "use": "Photo / paparazzi / press stills",
+      "defaultVolume": 0.28,
+      "maxDurationSec": 0.7
+    },
+    "camera_flash": {
+      "file": "camera_flash.wav",
+      "role": "accent",
+      "use": "Press / flashbulb / media swarm beats",
+      "defaultVolume": 0.26,
+      "maxDurationSec": 1.2
+    },
+    "film_gate": {
+      "file": "film_gate.wav",
+      "role": "accent",
+      "use": "Archive / Diana legacy / vintage stills",
+      "defaultVolume": 0.3,
+      "maxDurationSec": 1.8
+    },
+    "cinematic_whoosh": {
+      "file": "cinematic_whoosh.wav",
+      "role": "accent",
+      "use": "Chapter / major story turn (rare)",
+      "defaultVolume": 0.2,
+      "maxDurationSec": 2.2
+    },
+    "cinematic_hit": {
+      "file": "cinematic_hit.wav",
+      "role": "accent",
+      "use": "Reveal / legal judgment / big claim (very rare)",
+      "defaultVolume": 0.18,
+      "maxDurationSec": 2.5
+    }
+  },
+  "rejected": [
+    "glitch-and-distortion — too YouTube/tech for international royal docs",
+    "dslr-burst — too long/loud for cuts",
+    "sci-fi-scanner — genre mismatch",
+    "Digital Snap Malfunction — glitchy",
+    "riser-4 — trailer stinger; avoid on routine cuts"
+  ]
+}

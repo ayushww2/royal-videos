@@ -1,0 +1,48 @@
+name: Make Remotion Serverless GHCR package public
+
+on:
+  workflow_dispatch:
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  public:
+    runs-on: ubuntu-latest
+    steps:
+      - name: List and publish package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          OWNER="${{ github.repository_owner }}"
+          PKG="new-video-ai-remotion-serverless"
+          echo "Listing packages for $OWNER..."
+          gh api "/user/packages?package_type=container" --jq '.[].name' || true
+          echo "Attempting visibility=public for $PKG"
+          # Prefer JSON body (more reliable than -f for this endpoint)
+          CODE=$(curl -sS -o /tmp/vis.json -w "%{http_code}" -X PUT \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/user/packages/container/${PKG}/visibility" \
+            -d '{"visibility":"public"}' || true)
+          echo "HTTP $CODE"
+          cat /tmp/vis.json || true
+          if [ "$CODE" != "204" ] && [ "$CODE" != "200" ]; then
+            echo "Trying org endpoint..."
+            CODE=$(curl -sS -o /tmp/vis2.json -w "%{http_code}" -X PUT \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/orgs/${OWNER}/packages/container/${PKG}/visibility" \
+              -d '{"visibility":"public"}' || true)
+            echo "org HTTP $CODE"
+            cat /tmp/vis2.json || true
+          fi
+          # Verify anonymous pull token works
+          TOKEN=$(curl -sS "https://ghcr.io/token?scope=repository:${OWNER}/${PKG}:pull&service=ghcr.io" | jq -r .token)
+          curl -sS -o /dev/null -w "anon_manifest_http=%{http_code}\n" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            "https://ghcr.io/v2/${OWNER}/${PKG}/manifests/latest"

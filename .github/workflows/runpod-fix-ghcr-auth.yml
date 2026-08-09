@@ -1,0 +1,88 @@
+name: Fix RunPod GHCR auth on serverless endpoint
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Attach GHCR auth to Remotion template + endpoint
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          GH_USER: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ENDPOINT_ID: 02l3ch5aaefcw3
+          IMAGE: ghcr.io/${{ github.repository_owner }}/new-video-ai-remotion-serverless:latest
+        run: |
+          set -euo pipefail
+          AUTH_NAME="ghcr-fix-$(date +%s)"
+          AUTH_JSON=$(curl -sS -X POST "https://rest.runpod.io/v1/containerregistryauth" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"${AUTH_NAME}\",\"username\":\"${GH_USER}\",\"password\":\"${GH_TOKEN}\"}")
+          echo "auth=$AUTH_JSON"
+          AUTH_ID=$(echo "$AUTH_JSON" | jq -r .id)
+          test -n "$AUTH_ID" && test "$AUTH_ID" != "null"
+
+          # Make package public if possible
+          curl -sS -o /tmp/vis.json -w "vis=%{http_code}\n" -X PUT \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/user/packages/container/new-video-ai-remotion-serverless/visibility" \
+            -d '{"visibility":"public"}' || true
+          cat /tmp/vis.json || true
+
+          TMPL_NAME="doc-remotion-$(date +%s | tail -c 6)"
+          # Pull env from current endpoint template via REST if needed — set full worker env from Railway-like defaults
+          TMPL=$(curl -sS -X POST "https://rest.runpod.io/v1/templates" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d @- <<EOF
+          {
+            "name": "${TMPL_NAME}",
+            "imageName": "${IMAGE}",
+            "isServerless": true,
+            "containerDiskInGb": 40,
+            "volumeInGb": 0,
+            "containerRegistryAuthId": "${AUTH_ID}",
+            "dockerStartCmd": ["python3", "-u", "serverless/handler.py"],
+            "env": {
+              "RENDERER": "remotion",
+              "REMOTION_LAMBDA": "0",
+              "RUNPOD_RENDER": "0",
+              "REMOTION_CONCURRENCY": "8",
+              "STORAGE_PATH": "/app/storage",
+              "NODE_ENV": "production",
+              "PUBLIC_APP_URL": "https://web-production-a65b9.up.railway.app",
+              "APP_BASE_URL": "https://web-production-a65b9.up.railway.app"
+            }
+          }
+          EOF
+          )
+          echo "tmpl=$(echo "$TMPL" | jq -c '{id,imageName,containerRegistryAuthId}')"
+          TMPL_ID=$(echo "$TMPL" | jq -r .id)
+          test -n "$TMPL_ID" && test "$TMPL_ID" != "null"
+
+          curl -sS -X PATCH "https://rest.runpod.io/v1/endpoints/${ENDPOINT_ID}" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"templateId\": \"${TMPL_ID}\",
+              \"gpuTypeIds\": [\"NVIDIA GeForce RTX 3090\",\"NVIDIA GeForce RTX 4090\",\"NVIDIA RTX A5000\",\"NVIDIA L4\"],
+              \"workersMax\": 2,
+              \"workersMin\": 0,
+              \"idleTimeout\": 5,
+              \"scalerType\": \"REQUEST_COUNT\",
+              \"scalerValue\": 1
+            }" | jq -c '{id,templateId,workersMin,workersMax,gpuTypeIds}'
+
+          curl -sS -X POST "https://api.runpod.ai/v2/${ENDPOINT_ID}/purge-queue" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" || true
+
+          echo "FIXED_AUTH_ID=${AUTH_ID}"
+          echo "FIXED_TEMPLATE=${TMPL_ID}"

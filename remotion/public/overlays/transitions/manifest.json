@@ -1,0 +1,12 @@
+[
+  {"id":"camera-shutter","file":"overlays/transitions/camera-shutter.mp4","durationSec":1},
+  {"id":"double-camera-film-burn","file":"overlays/transitions/double-camera-film-burn.mp4","durationSec":1},
+  {"id":"film-burn","file":"overlays/transitions/film-burn.mp4","durationSec":1},
+  {"id":"film-burn-woosh","file":"overlays/transitions/film-burn-woosh.mp4","durationSec":1},
+  {"id":"light-film-burn","file":"overlays/transitions/light-film-burn.mp4","durationSec":1},
+  {"id":"light-glitch-effect","file":"overlays/transitions/light-glitch-effect.mp4","durationSec":1},
+  {"id":"rgb-glitch-effect","file":"overlays/transitions/rgb-glitch-effect.mp4","durationSec":1},
+  {"id":"soft-film-burn","file":"overlays/transitions/soft-film-burn.mp4","durationSec":1},
+  {"id":"transition-glitch","file":"overlays/transitions/transition-glitch.mp4","durationSec":1},
+  {"id":"white-glitch","file":"overlays/transitions/white-glitch.mp4","durationSec":1}
+]

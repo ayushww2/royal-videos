@@ -1,0 +1,89 @@
+{
+  "niche": "Royal v2",
+  "loudnessTargetLufs": -34,
+  "notes": "International royal documentary music beds — sparse under VO, max 3 pieces/video. Sources loudnorm'd to ~-32..-34 LUFS; Remotion volume ~0.08–0.12 bed, 0.14–0.18 chapter boost only.",
+  "volumeMath": {
+    "sourceLufs": -34,
+    "bedVolume": 0.1,
+    "denseVoDuck": 0.08,
+    "chapterBoost": 0.16,
+    "hardMax": 0.18,
+    "fadeInSec": 2.5,
+    "fadeOutSec": 3.5,
+    "minGapBetweenPiecesSec": 18
+  },
+  "tracks": {
+    "the_palace_decision": {
+      "file": "the_palace_decision.mp3",
+      "durationSec": 120,
+      "mood": ["solemn", "decisive", "institutional"],
+      "suggestedUse": "Short chapter open / palace decision beats; good for 60–90s beds",
+      "defaultVolume": 0.1,
+      "maxUseSec": 100
+    },
+    "royal_backlash": {
+      "file": "royal_backlash.mp3",
+      "durationSec": 240,
+      "mood": ["tense", "conflict", "public_backlash"],
+      "suggestedUse": "Scandal, press storm, public anger, family feud",
+      "defaultVolume": 0.1,
+      "maxUseSec": 110
+    },
+    "the_sacred_crown": {
+      "file": "the_sacred_crown.mp3",
+      "durationSec": 240,
+      "mood": ["regal", "ceremonial", "weighty"],
+      "suggestedUse": "Institution, crown, monarchy as institution — not crisis",
+      "defaultVolume": 0.1,
+      "maxUseSec": 120
+    },
+    "a_private_message_from_the_past": {
+      "file": "a_private_message_from_the_past.mp3",
+      "durationSec": 240,
+      "mood": ["intimate", "nostalgic", "archival"],
+      "suggestedUse": "Letters, memories, childhood, private family past",
+      "defaultVolume": 0.09,
+      "maxUseSec": 100
+    },
+    "palace_papers_and_secret_wills": {
+      "file": "palace_papers_and_secret_wills.mp3",
+      "durationSec": 240,
+      "mood": ["archival", "investigative", "legal"],
+      "suggestedUse": "Wills, estate docs, palace papers, legal intrigue",
+      "defaultVolume": 0.1,
+      "maxUseSec": 110
+    },
+    "monarchy_in_crisis": {
+      "file": "monarchy_in_crisis.mp3",
+      "durationSec": 240,
+      "mood": ["crisis", "tense", "unstable"],
+      "suggestedUse": "Institutional crisis, existential threat to monarchy",
+      "defaultVolume": 0.1,
+      "maxUseSec": 110
+    },
+    "royal_2": {
+      "file": "royal_2.mp3",
+      "durationSec": 572,
+      "mood": ["regal", "steady_bed", "documentary"],
+      "suggestedUse": "Long general royal bed when mood is neutral/regal; prefer shorter windows",
+      "defaultVolume": 0.1,
+      "maxUseSec": 140
+    },
+    "diana": {
+      "file": "diana.mp3",
+      "durationSec": 266,
+      "mood": ["memorial", "diana", "elegiac"],
+      "suggestedUse": "Diana legacy, grief, memorial, her influence on Harry",
+      "defaultVolume": 0.09,
+      "maxUseSec": 100
+    },
+    "royal": {
+      "file": "royal.mp3",
+      "durationSec": 538,
+      "mood": ["regal", "steady_bed", "documentary"],
+      "suggestedUse": "Alternate long regal bed; use when royal_2 already picked or for opener",
+      "defaultVolume": 0.1,
+      "maxUseSec": 140
+    }
+  }
+}
