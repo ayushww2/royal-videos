@@ -74,12 +74,12 @@ function TransitionDarkenVeil({
  * Underlays darken slightly while the transition plays so burns/glitches read cleanly.
  */
 export const TransitionPreviewAll: React.FC<TransitionPreviewAllProps> = ({
-  holdSec = 1.4,
+  holdSec = 2,
   transitionSec = 1,
-  speedFactor = 1.3,
+  speedFactor = 1,
   blendMode = "screen",
   transitionVolume = 0.9,
-  transitionDarken = 0.38,
+  transitionDarken = 0.3,
 }) => {
   const { fps } = useVideoConfig();
   const holdFrames = Math.max(1, Math.round(holdSec * fps));

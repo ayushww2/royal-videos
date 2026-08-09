@@ -39,6 +39,10 @@ import {
   type CinematicIntroProps,
   INTRO_DURATION_SEC,
 } from './CinematicIntro';
+import {
+  MysteryV3FinalPreview,
+  MYSTERY_V3_FINAL_PREVIEW_DURATION_SEC,
+} from './MysteryV3FinalPreview';
 import type {ProductionTimelineEvent} from './productionRegistry';
 
 /**
@@ -47,6 +51,14 @@ import type {ProductionTimelineEvent} from './productionRegistry';
  */
 export const RemotionRoot: React.FC = () => (
   <>
+    <Composition
+      id="MysteryV3FinalPreview"
+      component={MysteryV3FinalPreview}
+      durationInFrames={Math.round(MYSTERY_V3_FINAL_PREVIEW_DURATION_SEC * 30)}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
     <Composition
       id="AWSelectedVisualPackPreview"
       component={SelectedPackPreview}

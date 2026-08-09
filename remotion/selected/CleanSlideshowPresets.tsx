@@ -42,13 +42,15 @@ export type CleanDocumentarySlideshowProps = {
 const clamp = (value: number, min = 0, max = 1) =>
   Math.max(min, Math.min(max, value));
 
-const phase = (frame: number, from: number, to: number) =>
-  clamp(
+const phase = (frame: number, from: number, to: number) => {
+  if (!(to > from)) return frame >= to ? 1 : 0;
+  return clamp(
     interpolate(frame, [from, to], [0, 1], {
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
     })
   );
+};
 
 const easeInOut = (t: number) => {
   const p = clamp(t);
@@ -99,18 +101,30 @@ const useSlideState = (
   const frame = useCurrentFrame();
   const safeSlides = slides.length ? slides : [{src: ""}];
 
+  // Single-slide hold: no internal zoom/swap (avoids double motion with base Ken Burns).
+  if (safeSlides.length <= 1) {
+    return {
+      current: safeSlides[0],
+      next: safeSlides[0],
+      index: 0,
+      localFrame: frame,
+      slideProgress: 0,
+      transitionProgress: 0,
+    };
+  }
+
   const stride = Math.max(1, durationPerSlide - transitionFrames);
   const index = Math.floor(frame / stride) % safeSlides.length;
   const localFrame = frame % stride;
 
   const nextIndex = (index + 1) % safeSlides.length;
-  const transitionStart = stride - transitionFrames;
+  const tf = Math.max(0, transitionFrames);
+  const transitionStart = stride - tf;
 
-  const transitionProgress = phase(
-    localFrame,
-    transitionStart,
-    stride
-  );
+  const transitionProgress =
+    safeSlides.length <= 1 || tf <= 0
+      ? 0
+      : phase(localFrame, transitionStart, stride);
 
   const slideProgress = clamp(localFrame / stride);
 

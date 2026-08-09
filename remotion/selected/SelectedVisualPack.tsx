@@ -14,6 +14,7 @@ import {
   type CleanDocumentarySlideshowProps,
   type CleanSlide,
 } from './CleanSlideshowPresets';
+import {QuestionBelowImage} from '../QuestionBelowImage';
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
@@ -78,7 +79,11 @@ export const ClassicBlueWhiteLowerThird: React.FC<
   const p = intro * outro;
   const slide = interpolate(intro, [0, 1], [-620, 0]) - (1 - outro) * 260;
   const maxLength = Math.max(primaryText.length, secondaryText?.length ?? 0);
-  const boxWidth = Math.min(width * 0.67, Math.max(520, 250 + maxLength * 17));
+  // Fit bar tightly to short 2–3 word titles; grow for longer copy.
+  const boxWidth = Math.min(
+    width * 0.67,
+    Math.max(260, 140 + maxLength * 22 + (secondaryText ? 40 : 0)),
+  );
   const boxHeight = secondaryText ? 110 : 78;
 
   return (
@@ -380,6 +385,43 @@ export type SlideshowProps = {
   showPresetLabel?: boolean;
 };
 
+/** Stage wash colors for #11 Cinematic Stage Slideshow. */
+export type CinematicStageThemeId = 'amber' | 'steel' | 'teal' | 'crimson';
+
+export const CINEMATIC_STAGE_THEMES: Record<
+  CinematicStageThemeId,
+  {bg: string; glowA: string; glowB: string; label: string}
+> = {
+  amber: {
+    bg: '#241104',
+    glowA: 'rgba(205,104,31,0.46)',
+    glowB: 'rgba(89,24,8,0.42)',
+    label: 'Amber',
+  },
+  steel: {
+    bg: '#0a1628',
+    glowA: 'rgba(72,128,190,0.44)',
+    glowB: 'rgba(18,40,72,0.5)',
+    label: 'Steel',
+  },
+  teal: {
+    bg: '#041816',
+    glowA: 'rgba(28,168,148,0.4)',
+    glowB: 'rgba(8,52,46,0.5)',
+    label: 'Teal',
+  },
+  crimson: {
+    bg: '#1a0608',
+    glowA: 'rgba(190,42,62,0.44)',
+    glowB: 'rgba(62,10,22,0.52)',
+    label: 'Crimson',
+  },
+};
+
+export type CinematicStageSlideshowProps = SlideshowProps & {
+  theme?: CinematicStageThemeId;
+};
+
 const getSlideEntries = (
   slides: SlideItem[],
   defaultSlideFrames: number,
@@ -461,21 +503,28 @@ const FilmFinish: React.FC = () => (
   </>
 );
 
-export const CinematicStageSlideshow: React.FC<SlideshowProps> = ({
+export const CinematicStageSlideshow: React.FC<CinematicStageSlideshowProps> = ({
   slides,
   defaultSlideFrames = 105,
   transitionFrames = 20,
   intensity = 0.72,
+  theme = 'amber',
 }) => {
   const entries = getSlideEntries(slides, defaultSlideFrames, transitionFrames);
+  const palette = CINEMATIC_STAGE_THEMES[theme] ?? CINEMATIC_STAGE_THEMES.amber;
 
   if (!slides.length) return <AbsoluteFill style={{backgroundColor: '#000'}} />;
 
   return (
-    <AbsoluteFill style={{backgroundColor: '#241104', overflow: 'hidden'}}>
+    <AbsoluteFill style={{backgroundColor: palette.bg, overflow: 'hidden'}}>
       {entries.map(({slide, start, duration, index}) => (
         <Sequence key={`${slide.src}-${index}`} from={start} durationInFrames={duration}>
-          <CinematicStageSlide slide={slide} duration={duration} intensity={intensity} />
+          <CinematicStageSlide
+            slide={slide}
+            duration={duration}
+            intensity={intensity}
+            theme={theme}
+          />
         </Sequence>
       ))}
     </AbsoluteFill>
@@ -486,7 +535,8 @@ const CinematicStageSlide: React.FC<{
   slide: SlideItem;
   duration: number;
   intensity: number;
-}> = ({slide, duration, intensity}) => {
+  theme?: CinematicStageThemeId;
+}> = ({slide, duration, intensity, theme = 'amber'}) => {
   const frame = useCurrentFrame();
   const p = clamp01(frame / duration);
   const intro = phase(frame, 0, 10);
@@ -496,13 +546,13 @@ const CinematicStageSlide: React.FC<{
     [1, 0],
     {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
   );
+  const palette = CINEMATIC_STAGE_THEMES[theme] ?? CINEMATIC_STAGE_THEMES.amber;
 
   return (
     <AbsoluteFill style={{overflow: 'hidden'}}>
       <AbsoluteFill
         style={{
-          background:
-            'radial-gradient(circle at 24% 30%, rgba(205,104,31,0.46) 0%, transparent 42%), radial-gradient(circle at 77% 68%, rgba(89,24,8,0.42) 0%, transparent 45%), #241104',
+          background: `radial-gradient(circle at 24% 30%, ${palette.glowA} 0%, transparent 42%), radial-gradient(circle at 77% 68%, ${palette.glowB} 0%, transparent 45%), ${palette.bg}`,
         }}
       />
 
@@ -705,83 +755,30 @@ export type RevealQuestionProps = {
   durationFrames?: number;
   accentColor?: string;
   backgroundImage?: string;
+  imageSrc?: string;
+  imageOnly?: boolean;
+  soundVolume?: number;
 };
 
 export const RevealQuestion: React.FC<RevealQuestionProps> = ({
   primaryText,
   question,
-  secondaryText,
-  subtext,
   durationFrames = 105,
-  accentColor = '#F04C56',
   backgroundImage,
-}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  const displayQuestion = question ?? primaryText ?? '';
-  const displaySubtext = subtext ?? secondaryText;
-
-  const intro = clamp01(
-    spring({
-      frame,
-      fps,
-      durationInFrames: 26,
-      config: {damping: 12, stiffness: 145, mass: 0.8},
-    }),
-  );
-  const outro = interpolate(
-    frame,
-    [Math.max(0, durationFrames - 14), durationFrames],
-    [1, 0],
-    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
-  );
-  const lineWidth = interpolate(intro, [0, 1], [0, 300]);
-
-  return (
-    <AbsoluteFill style={{backgroundColor: 'black', overflow: 'hidden'}}>
-      {backgroundImage ? (
-        <Img
-          src={backgroundImage}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            transform: 'scale(1.06)',
-            filter: 'brightness(0.28) contrast(1.05) saturate(0.82)',
-          }}
-        />
-      ) : null}
-
-      <AbsoluteFill style={{background: 'radial-gradient(circle at center, rgba(16,20,28,0.12), rgba(0,0,0,0.76))'}} />
-
-      <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', opacity: intro * outro}}>
-        <div style={{width: '84%', textAlign: 'center', transform: `scale(${1.28 - intro * 0.28})`}}>
-          <div
-            style={{
-              color: 'white',
-              fontFamily: 'Arial Narrow, Oswald, Impact, Inter, sans-serif',
-              fontWeight: 950,
-              fontSize: displayQuestion.length > 38 ? 56 : 72,
-              letterSpacing: 2.6,
-              lineHeight: 1,
-              textTransform: 'uppercase',
-              textShadow: '0 6px 24px rgba(0,0,0,0.78)',
-            }}
-          >
-            {displayQuestion}
-          </div>
-          <div style={{width: lineWidth, height: 6, backgroundColor: accentColor, margin: '28px auto 0', boxShadow: `0 0 20px ${accentColor}`}} />
-          {displaySubtext ? (
-            <div style={{marginTop: 24, color: 'rgba(255,255,255,0.84)', fontFamily: 'Inter, Arial, sans-serif', fontWeight: 750, fontSize: 24, letterSpacing: 1.8, textTransform: 'uppercase'}}>
-              {displaySubtext}
-            </div>
-          ) : null}
-        </div>
-      </AbsoluteFill>
-      <FilmFinish />
-    </AbsoluteFill>
-  );
-};
+  imageSrc,
+  imageOnly = false,
+  soundVolume = 0.16,
+}) => (
+  <QuestionBelowImage
+    backgroundImage={backgroundImage}
+    imageSrc={imageSrc}
+    question={question || primaryText}
+    durationFrames={durationFrames}
+    soundVolume={imageOnly ? 0 : soundVolume}
+    imageOnly={imageOnly}
+    showCursor={!imageOnly}
+  />
+);
 
 export type GlitchCutTransitionProps = {
   from?: React.ReactNode;
