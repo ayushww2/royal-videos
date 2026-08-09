@@ -23,7 +23,7 @@ const SPROCKETS = 7;
  */
 export const EightMmReelEffect: React.FC<EightMmReelProps> = ({
   imageSrc = staticFile('demo/statue.png'),
-  soundVolume = 0.55,
+  soundVolume = 1,
 }) => {
   const frame = useCurrentFrame();
   const {width, height, durationInFrames} = useVideoConfig();
