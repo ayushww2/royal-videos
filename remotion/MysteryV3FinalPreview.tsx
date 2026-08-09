@@ -121,7 +121,7 @@ export const MysteryV3FinalPreview: React.FC = () => {
       node: Reveal ? (
         <Reveal
           question="WHAT DID THEY HIDE?"
-          backgroundImage={a}
+          backgroundImage={staticFile("demo/statue.png")}
           durationFrames={hf}
         />
       ) : null,
