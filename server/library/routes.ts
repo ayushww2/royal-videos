@@ -7,6 +7,12 @@ import {
   loadPersonLibrary,
   loadRootLibrary,
 } from "./collectImages.js";
+import {
+  describeAllRoyalPeople,
+  describeRoyalPerson,
+  ROYAL_PEOPLE,
+} from "./describeRoyal.js";
+import { slugify } from "./types.js";
 
 function contentTypeForKey(key: string, provided?: string): string {
   const lower = key.toLowerCase();
@@ -50,8 +56,7 @@ export function registerPublicLibraryRenderRoute(app: Express): void {
       if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
       const key = String(req.query.key || "");
       const token = String(req.query.token || "");
-      const allowed =
-        key.startsWith("library/") || key.startsWith("renders/");
+      const allowed = key.startsWith("library/") || key.startsWith("renders/");
       if (!allowed || !validLibraryRenderToken(key, token)) {
         return res.status(403).json({ error: "Invalid render media token" });
       }
@@ -87,7 +92,7 @@ export function registerLibraryRoutes(app: Express): void {
   app.post("/api/media-library/collect", async (req, res) => {
     try {
       if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
-      const niche = String(req.body?.niche || "Royal v1");
+      const niche = String(req.body?.niche || "Royal Family");
       const person = String(req.body?.person || "");
       const targetCount = Number(req.body?.targetCount || 200);
       if (!person) return res.status(400).json({ error: "person required" });
@@ -97,6 +102,65 @@ export function registerLibraryRoutes(app: Express): void {
         person,
         targetCount,
       }).catch((err) => console.error("[library] collect failed", err));
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /** Additive bulk collect for all royal people (sequential on server). */
+  app.post("/api/media-library/collect-royal-bulk", async (req, res) => {
+    try {
+      if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
+      const addCount = Math.max(50, Math.min(600, Number(req.body?.addCount || 400)));
+      const people: string[] =
+        Array.isArray(req.body?.people) && req.body.people.length
+          ? req.body.people.map(String)
+          : [...ROYAL_PEOPLE];
+      res.json({ ok: true, started: true, people: people.length, addCount });
+      void (async () => {
+        for (const person of people) {
+          try {
+            const existing = await loadPersonLibrary("royal-family", slugify(person));
+            const cur = existing?.counts?.images || 0;
+            const targetCount = Math.min(800, cur + addCount);
+            console.log(`[library] bulk collect ${person}: ${cur} -> ${targetCount}`);
+            await collectPersonImages({
+              niche: "Royal Family",
+              person,
+              targetCount,
+            });
+          } catch (err) {
+            console.error(`[library] bulk collect failed ${person}`, err);
+          }
+        }
+        console.log("[library] bulk collect finished");
+      })();
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /** AI vision-describe royal stills (short unique captions). Additive — never deletes. */
+  app.post("/api/media-library/describe-royal", async (req, res) => {
+    try {
+      if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
+      const person = String(req.body?.person || "").trim();
+      const all = Boolean(req.body?.all);
+      const force = Boolean(req.body?.force);
+      const limit = Number(req.body?.limit || 0);
+      if (!all && !person) return res.status(400).json({ error: "person required (or all:true)" });
+      res.json({ ok: true, started: true, person: person || null, all, force, limit });
+      void (async () => {
+        try {
+          if (all) {
+            await describeAllRoyalPeople({ force, limitPerPerson: limit || undefined });
+          } else {
+            await describeRoyalPerson({ person, force, limit: limit || undefined });
+          }
+        } catch (err) {
+          console.error("[library] describe-royal failed", err);
+        }
+      })();
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
@@ -135,7 +199,9 @@ export function registerLibraryRoutes(app: Express): void {
         assets = assets.filter((a) => a.mediaType === mediaType);
       }
       if (category !== "all") {
-        assets = assets.filter((a) => a.category === category || a.categories.includes(category as never));
+        assets = assets.filter(
+          (a) => a.category === category || a.categories.includes(category as never)
+        );
       }
       res.json({
         ...person,

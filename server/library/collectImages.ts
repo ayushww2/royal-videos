@@ -138,12 +138,56 @@ function buildCategoryQueries(person: string): Array<{ category: LibraryCategory
     }
   }
 
-  const years = ["2024", "2023", "2022", "2021", "2020", "2019", "2018", "2017"];
+  const years = [
+    "2025",
+    "2024",
+    "2023",
+    "2022",
+    "2021",
+    "2020",
+    "2019",
+    "2018",
+    "2017",
+    "2016",
+    "2015",
+    "2014",
+    "2013",
+    "2012",
+    "2011",
+    "2010",
+  ];
   for (const year of years) {
     queries.push(
       { category: "event", query: `${a} royal event ${year} photo landscape` },
       { category: "formal", query: `${a} ceremony ${year} photo horizontal` },
-      { category: "smiling", query: `${a} smiling ${year} photo landscape` }
+      { category: "smiling", query: `${a} smiling ${year} photo landscape` },
+      { category: "portrait", query: `${a} ${year} photograph horizontal` },
+      { category: "other", query: `${b} ${year} news photo landscape` }
+    );
+  }
+
+  const venues = [
+    "Buckingham Palace",
+    "Windsor Castle",
+    "Westminster Abbey",
+    "Balmoral",
+    "Sandringham",
+    "Trooping the Colour",
+    "Commonwealth",
+    "state visit",
+    "remembrance",
+    "garden party",
+    "walkabout",
+    "carriage procession",
+    "balcony appearance",
+    "church service",
+    "hospital visit",
+    "school visit",
+  ];
+  for (const venue of venues) {
+    queries.push(
+      { category: "event", query: `${a} ${venue} photo landscape` },
+      { category: "formal", query: `${b} ${venue} photograph horizontal` }
     );
   }
 
@@ -219,7 +263,7 @@ function imageDescription(person: string, category: LibraryCategory, item: Googl
   return `${person} ${categoryText} image${source}, collected for documentary B-roll and visual matching.${titlePart} Query: ${query}`;
 }
 
-async function googleImageSearch(query: string, num = 20): Promise<GoogleImageItem[]> {
+async function googleImageSearch(query: string, num = 20, page = 1): Promise<GoogleImageItem[]> {
   const key = getSearchApiKey();
   const url = new URL("https://www.searchapi.io/api/v1/search");
   url.searchParams.set("engine", "google_images");
@@ -230,6 +274,7 @@ async function googleImageSearch(query: string, num = 20): Promise<GoogleImageIt
   url.searchParams.set("safe", "active");
   url.searchParams.set("size", "large");
   url.searchParams.set("aspect_ratio", "wide");
+  if (page > 1) url.searchParams.set("page", String(page));
 
   const res = await fetch(url);
   if (!res.ok) {
@@ -250,6 +295,15 @@ function looksClean(item: GoogleImageItem, person: string): { ok: boolean; reaso
   if (BAD_HOSTS.some((h) => hay.includes(h))) return { ok: false, reason: "watermark host" };
   if (BAD_TITLE.some((t) => title.includes(t))) return { ok: false, reason: "bad title" };
   if (/\b(lorem|stock vector|clipart)\b/i.test(title)) return { ok: false, reason: "graphic" };
+  // Reject obvious non-person landscape / travel stock that SearchAPI sometimes mixes in
+  if (
+    /\b(yosemite|bushkill|cathedral rocks|national park|fstoppers|waterfall|mountain range|coast path expands)\b/i.test(
+      title
+    ) &&
+    !personTitleHints(person).test(title)
+  ) {
+    return { ok: false, reason: "landscape stock" };
+  }
 
   const w = item.original?.width || 0;
   const h = item.original?.height || 0;
@@ -259,8 +313,15 @@ function looksClean(item: GoogleImageItem, person: string): { ok: boolean; reaso
     if (w / h > 2.6) return { ok: false, reason: "too ultra-wide" };
   }
   if (title.length > 10 && !personTitleHints(person).test(title)) {
-    // soft reject only when title clearly names someone else royal
-    if (/\b(trump|obama|biden|elton john)\b/i.test(title)) return { ok: false, reason: "wrong subject" };
+    // Require person hint in informative titles — avoids landscape/stock bleed
+    if (title.length > 18) return { ok: false, reason: "title missing person" };
+    if (
+      /\b(trump|obama|biden|elton john|beyonce|taylor swift|landscape photography|national park)\b/i.test(
+        title
+      )
+    ) {
+      return { ok: false, reason: "wrong subject" };
+    }
   }
   return { ok: true };
 }
@@ -515,81 +576,86 @@ export async function collectPersonImages(params: {
   let sinceFlush = 0;
 
   const categoryQueries = buildCategoryQueries(person);
+  const pagesPerQuery = Math.max(1, Math.min(5, Number(process.env.ROYAL_COLLECT_PAGES || 3)));
   for (const { category, query } of categoryQueries) {
     if (assets.filter((a) => a.mediaType === "image").length >= target) break;
-    log(`[library] ${person}: ${query}`);
-    let results: GoogleImageItem[] = [];
-    try {
-      results = await googleImageSearch(query, 22);
-    } catch (err) {
-      log(`[library] search failed: ${err instanceof Error ? err.message : err}`);
-      continue;
-    }
-
-    for (const item of results) {
+    for (let page = 1; page <= pagesPerQuery; page++) {
       if (assets.filter((a) => a.mediaType === "image").length >= target) break;
-      const check = looksClean(item, person);
-      if (!check.ok) continue;
-      const url = item.original!.link!;
-      if (seenUrls.has(url)) continue;
-      seenUrls.add(url);
+      log(`[library] ${person}: ${query} (page ${page})`);
+      let results: GoogleImageItem[] = [];
+      try {
+        results = await googleImageSearch(query, 22, page);
+      } catch (err) {
+        log(`[library] search failed: ${err instanceof Error ? err.message : err}`);
+        break;
+      }
+      if (!results.length) break;
 
-      const downloaded = await downloadImage(url);
-      if (!downloaded) continue;
-      const contentHash = crypto.createHash("sha256").update(downloaded.buf).digest("hex");
-      if (seenHashes.has(contentHash)) continue;
-      seenHashes.add(contentHash);
+      for (const item of results) {
+        if (assets.filter((a) => a.mediaType === "image").length >= target) break;
+        const check = looksClean(item, person);
+        if (!check.ok) continue;
+        const url = item.original!.link!;
+        if (seenUrls.has(url)) continue;
+        seenUrls.add(url);
 
-      const ext =
-        downloaded.contentType.includes("png")
-          ? "png"
-          : downloaded.contentType.includes("webp")
-            ? "webp"
-            : "jpg";
-      const assetId = `${nicheSlug}-${personSlug}-img-${String(nextNum).padStart(4, "0")}`;
-      const r2Key = `library/${nicheSlug}/${personSlug}/images/${assetId}.${ext}`;
+        const downloaded = await downloadImage(url);
+        if (!downloaded) continue;
+        const contentHash = crypto.createHash("sha256").update(downloaded.buf).digest("hex");
+        if (seenHashes.has(contentHash)) continue;
+        seenHashes.add(contentHash);
 
-      await r2PutObject({
-        key: r2Key,
-        body: downloaded.buf,
-        contentType: downloaded.contentType,
-        metadata: {
-          person: personSlug,
+        const ext =
+          downloaded.contentType.includes("png")
+            ? "png"
+            : downloaded.contentType.includes("webp")
+              ? "webp"
+              : "jpg";
+        const assetId = `${nicheSlug}-${personSlug}-img-${String(nextNum).padStart(4, "0")}`;
+        const r2Key = `library/${nicheSlug}/${personSlug}/images/${assetId}.${ext}`;
+
+        await r2PutObject({
+          key: r2Key,
+          body: downloaded.buf,
+          contentType: downloaded.contentType,
+          metadata: {
+            person: personSlug,
+            category,
+            number: String(nextNum),
+          },
+        });
+
+        const asset: LibraryAsset = {
+          assetId,
+          number: nextNum,
+          niche,
+          nicheSlug,
+          person,
+          personSlug,
+          mediaType: "image",
           category,
-          number: String(nextNum),
-        },
-      });
-
-      const asset: LibraryAsset = {
-        assetId,
-        number: nextNum,
-        niche,
-        nicheSlug,
-        person,
-        personSlug,
-        mediaType: "image",
-        category,
-        categories: [category],
-        r2Key,
-        width: item.original?.width,
-        height: item.original?.height,
-        sourceUrl: url,
-        sourcePageUrl: item.source?.link,
-        contentHash,
-        queryUsed: query,
-        title: item.title,
-        description: imageDescription(person, category, item, query),
-        createdAt: new Date().toISOString(),
-      };
-      assets.push(asset);
-      nextNum += 1;
-      sinceFlush += 1;
-      const imageTotal = assets.filter((a) => a.mediaType === "image").length;
-      log(`[library] saved ${assetId} (${category}) total=${imageTotal}`);
-      if (sinceFlush >= flushEvery) {
-        await persistPersonLibraryIndexes(buildPersonIndex(niche, nicheSlug, person, personSlug, assets));
-        sinceFlush = 0;
-        log(`[library] flushed index ${person} at ${imageTotal}`);
+          categories: [category],
+          r2Key,
+          width: item.original?.width,
+          height: item.original?.height,
+          sourceUrl: url,
+          sourcePageUrl: item.source?.link,
+          contentHash,
+          queryUsed: query,
+          title: item.title,
+          description: imageDescription(person, category, item, query),
+          createdAt: new Date().toISOString(),
+        };
+        assets.push(asset);
+        nextNum += 1;
+        sinceFlush += 1;
+        const imageTotal = assets.filter((a) => a.mediaType === "image").length;
+        log(`[library] saved ${assetId} (${category}) total=${imageTotal}`);
+        if (sinceFlush >= flushEvery) {
+          await persistPersonLibraryIndexes(buildPersonIndex(niche, nicheSlug, person, personSlug, assets));
+          sinceFlush = 0;
+          log(`[library] flushed index ${person} at ${imageTotal}`);
+        }
       }
     }
   }
