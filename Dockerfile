@@ -3,6 +3,7 @@ FROM node:22-bookworm-slim
 # FFmpeg + Chromium deps for Remotion server-side render
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    unzip \
     ca-certificates \
     fonts-liberation \
     libasound2 \
