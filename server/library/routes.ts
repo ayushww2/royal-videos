@@ -1,5 +1,9 @@
 import type { Express, Request, Response } from "express";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import multer from "multer";
+import os from "node:os";
+import path from "node:path";
 import { r2Configured, r2GetObjectBuffer } from "./r2.js";
 import {
   collectPersonImages,
@@ -12,7 +16,26 @@ import {
   describeRoyalPerson,
   ROYAL_PEOPLE,
 } from "./describeRoyal.js";
-import { slugify } from "./types.js";
+import {
+  bulkDeleteRawClips,
+  uploadTrustedClipsForPerson,
+  uploadTrustedZipBulk,
+} from "./trustedUpload.js";
+import { countLibraryAssets, isRawClipMediaType, slugify } from "./types.js";
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      const dir = path.join(os.tmpdir(), "royal-library-uploads");
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (_req, file, cb) => {
+      cb(null, `${Date.now()}-${Math.random().toString(16).slice(2)}-${file.originalname}`);
+    },
+  }),
+  limits: { fileSize: 512 * 1024 * 1024, files: 40 },
+});
 
 function contentTypeForKey(key: string, provided?: string): string {
   const lower = key.toLowerCase();
@@ -22,13 +45,15 @@ function contentTypeForKey(key: string, provided?: string): string {
       ? "video/mp4"
       : lower.endsWith(".webm")
         ? "video/webm"
-        : lower.endsWith(".jpg") || lower.endsWith(".jpeg")
-          ? "image/jpeg"
-          : lower.endsWith(".png")
-            ? "image/png"
-            : lower.endsWith(".webp")
-              ? "image/webp"
-              : "application/octet-stream")
+        : lower.endsWith(".mov")
+          ? "video/quicktime"
+          : lower.endsWith(".jpg") || lower.endsWith(".jpeg")
+            ? "image/jpeg"
+            : lower.endsWith(".png")
+              ? "image/png"
+              : lower.endsWith(".webp")
+                ? "image/webp"
+                : "application/octet-stream")
   );
 }
 
@@ -48,6 +73,54 @@ export function validLibraryRenderToken(key: string, token: string): boolean {
   const expected = signLibraryRenderKey(key);
   if (token.length !== expected.length) return false;
   return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected));
+}
+
+function enrichPersonCounts<T extends { assets?: Parameters<typeof countLibraryAssets>[0]; counts?: any }>(
+  person: T
+): T {
+  if (!person?.assets) return person;
+  const counts = countLibraryAssets(person.assets);
+  return { ...person, counts: { ...(person.counts || {}), ...counts } };
+}
+
+function enrichNichePeople<T extends { people?: Array<any> }>(niche: T): T {
+  if (!niche?.people) return niche;
+  return {
+    ...niche,
+    people: niche.people.map((p) => {
+      const raw = Number(p.raw_footage || 0);
+      const trusted = Number(p.trusted_clips || 0);
+      const rawClips = Number(p.raw_clips ?? raw + trusted);
+      return { ...p, raw_footage: raw, trusted_clips: trusted, raw_clips: rawClips };
+    }),
+  };
+}
+
+function enrichRoot<T extends { niches?: Array<any> }>(root: T): T {
+  if (!root?.niches) return root;
+  return {
+    ...root,
+    niches: root.niches.map((n) => {
+      const raw = Number(n.raw_footage || 0);
+      const trusted = Number(n.trusted_clips || 0);
+      return {
+        ...n,
+        raw_footage: raw,
+        trusted_clips: trusted,
+        raw_clips: Number(n.raw_clips ?? raw + trusted),
+      };
+    }),
+  };
+}
+
+function cleanupFiles(files: Array<{ path: string }> | undefined): void {
+  for (const f of files || []) {
+    try {
+      fs.unlinkSync(f.path);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 export function registerPublicLibraryRenderRoute(app: Express): void {
@@ -72,7 +145,6 @@ export function registerPublicLibraryRenderRoute(app: Express): void {
 }
 
 export function registerLibraryRoutes(app: Express): void {
-  // Static paths MUST be registered before :nicheSlug params
   app.get("/api/media-library/asset", async (req: Request, res: Response) => {
     try {
       if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
@@ -107,7 +179,6 @@ export function registerLibraryRoutes(app: Express): void {
     }
   });
 
-  /** Additive bulk collect for all royal people (sequential on server). */
   app.post("/api/media-library/collect-royal-bulk", async (req, res) => {
     try {
       if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
@@ -140,7 +211,6 @@ export function registerLibraryRoutes(app: Express): void {
     }
   });
 
-  /** AI vision-describe royal stills (short unique captions). Additive — never deletes. */
   app.post("/api/media-library/describe-royal", async (req, res) => {
     try {
       if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
@@ -166,11 +236,75 @@ export function registerLibraryRoutes(app: Express): void {
     }
   });
 
+  /** Upload zip packs → raw clips (stored as trusted_clip, shown as raw clips). */
+  app.post("/api/media-library/trusted/bulk", upload.array("files", 40), async (req, res) => {
+    try {
+      if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
+      const files = (req.files as Array<{ path: string; originalname: string }> | undefined) || [];
+      if (!files.length) return res.status(400).json({ error: "No files uploaded" });
+      const niche = String(req.body?.niche || "Royal Family");
+      const result = await uploadTrustedZipBulk({
+        niche,
+        files: files.map((f) => ({ path: f.path, originalname: f.originalname })),
+      });
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      cleanupFiles(req.files as Array<{ path: string }> | undefined);
+    }
+  });
+
+  app.post(
+    "/api/media-library/:nicheSlug/:personSlug/trusted",
+    upload.array("files", 40),
+    async (req, res) => {
+      try {
+        if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
+        const files = (req.files as Array<{ path: string; originalname: string }> | undefined) || [];
+        if (!files.length) return res.status(400).json({ error: "No files uploaded" });
+        const nicheSlug = req.params.nicheSlug;
+        const personSlug = req.params.personSlug;
+        const existing = await loadPersonLibrary(nicheSlug, personSlug);
+        const person = String(req.body?.person || existing?.person || personSlug);
+        const niche = existing?.niche || "Royal Family";
+        const result = await uploadTrustedClipsForPerson({
+          niche,
+          nicheSlug,
+          person,
+          personSlug,
+          files: files.map((f) => ({ path: f.path, originalname: f.originalname })),
+        });
+        res.json({ ok: true, ...result });
+      } catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+      } finally {
+        cleanupFiles(req.files as Array<{ path: string }> | undefined);
+      }
+    }
+  );
+
+  app.post("/api/media-library/:nicheSlug/:personSlug/raw/bulk-delete", async (req, res) => {
+    try {
+      if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
+      const assetIds = Array.isArray(req.body?.assetIds) ? req.body.assetIds.map(String) : [];
+      if (!assetIds.length) return res.status(400).json({ error: "assetIds required" });
+      const result = await bulkDeleteRawClips({
+        nicheSlug: req.params.nicheSlug,
+        personSlug: req.params.personSlug,
+        assetIds,
+      });
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   app.get("/api/media-library", async (_req, res) => {
     try {
       if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
       const root = await loadRootLibrary();
-      res.json(root);
+      res.json(enrichRoot(root));
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
@@ -181,7 +315,7 @@ export function registerLibraryRoutes(app: Express): void {
       if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
       const niche = await loadNicheLibrary(req.params.nicheSlug);
       if (!niche) return res.status(404).json({ error: "Niche not found" });
-      res.json(niche);
+      res.json(enrichNichePeople(niche));
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
@@ -195,16 +329,24 @@ export function registerLibraryRoutes(app: Express): void {
       const mediaType = String(req.query.mediaType || "all");
       const category = String(req.query.category || "all");
       let assets = person.assets;
-      if (mediaType === "image" || mediaType === "raw_footage") {
-        assets = assets.filter((a) => a.mediaType === mediaType);
+      if (mediaType === "image") {
+        assets = assets.filter((a) => a.mediaType === "image");
+      } else if (
+        mediaType === "raw_footage" ||
+        mediaType === "raw_clips" ||
+        mediaType === "trusted_clip"
+      ) {
+        // One "raw clips" bucket: raw_footage + trusted_clip
+        assets = assets.filter((a) => isRawClipMediaType(a.mediaType));
       }
       if (category !== "all") {
         assets = assets.filter(
           (a) => a.category === category || a.categories.includes(category as never)
         );
       }
+      const enriched = enrichPersonCounts(person);
       res.json({
-        ...person,
+        ...enriched,
         assets,
         filter: { mediaType, category },
       });

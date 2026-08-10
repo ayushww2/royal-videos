@@ -10,7 +10,7 @@ import { getOpenAI } from "../openaiClient.js";
 import { config, optionalEnv } from "../config.js";
 import { r2Configured, r2GetJson, r2GetObjectBuffer, r2PutJson } from "./r2.js";
 import type { LibraryAsset, NicheLibraryIndex, PersonLibraryIndex } from "./types.js";
-import { slugify } from "./types.js";
+import { countLibraryAssets, slugify } from "./types.js";
 
 export const ROYAL_NICHE = "Royal Family";
 export const ROYAL_NICHE_SLUG = "royal-family";
@@ -207,14 +207,8 @@ Return JSON only:
 
 async function persistPerson(idx: PersonLibraryIndex): Promise<void> {
   const images = idx.assets.filter((a) => a.mediaType === "image");
-  const byCategory: Record<string, number> = {};
-  for (const a of images) byCategory[a.category] = (byCategory[a.category] || 0) + 1;
   idx.updatedAt = new Date().toISOString();
-  idx.counts = {
-    images: images.length,
-    raw_footage: idx.assets.filter((a) => a.mediaType === "raw_footage").length,
-    byCategory,
-  };
+  idx.counts = countLibraryAssets(idx.assets);
   await r2PutJson(`library/${ROYAL_NICHE_SLUG}/${idx.personSlug}/index.json`, idx);
   await r2PutJson(`library/${ROYAL_NICHE_SLUG}/${idx.personSlug}/manifest.json`, {
     person: idx.person,

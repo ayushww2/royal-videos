@@ -8,7 +8,7 @@ import type {
   PersonLibraryIndex,
   RootLibraryIndex,
 } from "./types.js";
-import { slugify } from "./types.js";
+import { countLibraryAssets, slugify } from "./types.js";
 
 const BAD_HOSTS = [
   "gettyimages",
@@ -363,23 +363,13 @@ function buildPersonIndex(
   personSlug: string,
   assets: LibraryAsset[]
 ): PersonLibraryIndex {
-  const images = assets.filter((a) => a.mediaType === "image");
-  const raw = assets.filter((a) => a.mediaType === "raw_footage");
-  const byCategory: PersonLibraryIndex["counts"]["byCategory"] = {};
-  for (const a of images) {
-    byCategory[a.category] = (byCategory[a.category] || 0) + 1;
-  }
   return {
     niche,
     nicheSlug,
     person,
     personSlug,
     updatedAt: new Date().toISOString(),
-    counts: {
-      images: images.length,
-      raw_footage: raw.length,
-      byCategory,
-    },
+    counts: countLibraryAssets(assets),
     assets: assets.sort((a, b) => a.number - b.number || a.assetId.localeCompare(b.assetId)),
   };
 }
@@ -387,35 +377,36 @@ function buildPersonIndex(
 async function persistPersonLibraryIndexes(personIndex: PersonLibraryIndex): Promise<void> {
   const { niche, nicheSlug, person, personSlug } = personIndex;
 
-  // Preserve any raw footage / images added in parallel that this process didn't load.
+  // Preserve images / raw / trusted clips added in parallel that this process didn't load.
   const live = await r2GetJson<PersonLibraryIndex>(personIndexKey(nicheSlug, personSlug));
-  const localImages = personIndex.assets.filter((a) => a.mediaType === "image");
-  const liveImages = (live?.assets || []).filter((a) => a.mediaType === "image");
-  const localRaw = personIndex.assets.filter((a) => a.mediaType === "raw_footage");
-  const liveRaw = (live?.assets || []).filter((a) => a.mediaType === "raw_footage");
+  const mergeById = (local: LibraryAsset[], remote: LibraryAsset[]) => {
+    const map = new Map<string, LibraryAsset>();
+    for (const a of remote) map.set(a.assetId, a);
+    for (const a of local) map.set(a.assetId, a);
+    return [...map.values()].sort((a, b) => a.number - b.number || a.assetId.localeCompare(b.assetId));
+  };
 
-  const imageMap = new Map<string, LibraryAsset>();
-  for (const a of liveImages) imageMap.set(a.assetId, a);
-  for (const a of localImages) imageMap.set(a.assetId, a);
-  const mergedImages = [...imageMap.values()].sort(
-    (a, b) => a.number - b.number || a.assetId.localeCompare(b.assetId)
+  const mergedImages = mergeById(
+    personIndex.assets.filter((a) => a.mediaType === "image"),
+    (live?.assets || []).filter((a) => a.mediaType === "image")
   );
-
-  const rawMap = new Map<string, LibraryAsset>();
-  for (const a of liveRaw) rawMap.set(a.assetId, a);
-  for (const a of localRaw) rawMap.set(a.assetId, a);
-  const mergedRaw = [...rawMap.values()].sort((a, b) => a.number - b.number || a.assetId.localeCompare(b.assetId));
-  const assets = [...mergedImages, ...mergedRaw];
-  const byCategory: PersonLibraryIndex["counts"]["byCategory"] = {};
-  for (const a of assets) byCategory[a.category] = (byCategory[a.category] || 0) + 1;
+  const mergedRawFootage = mergeById(
+    personIndex.assets.filter((a) => a.mediaType === "raw_footage"),
+    (live?.assets || []).filter((a) => a.mediaType === "raw_footage")
+  );
+  const mergedTrusted = mergeById(
+    personIndex.assets.filter((a) => a.mediaType === "trusted_clip"),
+    (live?.assets || []).filter((a) => a.mediaType === "trusted_clip")
+  );
+  // Keep any other future media types from live index
+  const known = new Set(["image", "raw_footage", "trusted_clip"]);
+  const otherLive = (live?.assets || []).filter((a) => !known.has(a.mediaType));
+  const assets = [...mergedImages, ...mergedRawFootage, ...mergedTrusted, ...otherLive];
+  const counts = countLibraryAssets(assets);
   const mergedIndex: PersonLibraryIndex = {
     ...personIndex,
     updatedAt: new Date().toISOString(),
-    counts: {
-      images: mergedImages.length,
-      raw_footage: mergedRaw.length,
-      byCategory,
-    },
+    counts,
     assets: assets.sort((a, b) => a.assetId.localeCompare(b.assetId)),
   };
 
@@ -434,8 +425,10 @@ async function persistPersonLibraryIndexes(personIndex: PersonLibraryIndex): Pro
   peopleMap.set(personSlug, {
     person,
     personSlug,
-    images: mergedIndex.counts.images,
-    raw_footage: mergedIndex.counts.raw_footage,
+    images: counts.images,
+    raw_footage: counts.raw_footage,
+    trusted_clips: counts.trusted_clips,
+    raw_clips: counts.raw_clips,
   });
   const nicheOut: NicheLibraryIndex = {
     niche,
@@ -454,7 +447,12 @@ async function persistPersonLibraryIndexes(personIndex: PersonLibraryIndex): Pro
     nicheSlug,
     peopleCount: nicheOut.people.length,
     images: nicheOut.people.reduce((n, p) => n + p.images, 0),
-    raw_footage: nicheOut.people.reduce((n, p) => n + p.raw_footage, 0),
+    raw_footage: nicheOut.people.reduce((n, p) => n + (p.raw_footage || 0), 0),
+    trusted_clips: nicheOut.people.reduce((n, p) => n + (p.trusted_clips || 0), 0),
+    raw_clips: nicheOut.people.reduce(
+      (n, p) => n + (p.raw_clips ?? (p.raw_footage || 0) + (p.trusted_clips || 0)),
+      0
+    ),
   });
   await r2PutJson(rootIndexKey(), {
     updatedAt: new Date().toISOString(),
@@ -499,7 +497,7 @@ export async function salvagePersonImagesFromR2(params: {
       person,
       personSlug,
       updatedAt: new Date().toISOString(),
-      counts: { images: 0, raw_footage: 0, byCategory: {} },
+      counts: countLibraryAssets([]),
       assets: [],
     } satisfies PersonLibraryIndex);
 
@@ -560,7 +558,7 @@ export async function collectPersonImages(params: {
       person,
       personSlug,
       updatedAt: new Date().toISOString(),
-      counts: { images: 0, raw_footage: 0, byCategory: {} },
+      counts: countLibraryAssets([]),
       assets: [],
     } satisfies PersonLibraryIndex);
 
@@ -717,7 +715,7 @@ export async function collectTogetherPairImages(params: {
         person,
         personSlug,
         updatedAt: new Date().toISOString(),
-        counts: { images: 0, raw_footage: 0, byCategory: {} },
+        counts: countLibraryAssets([]),
         assets: [],
       } satisfies PersonLibraryIndex);
     return { person, personSlug, existing };
