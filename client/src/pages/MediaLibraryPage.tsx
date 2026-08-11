@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "../components/AppShell";
 import { ErrorState, LoadingState } from "../components/Badges";
 import { api } from "../lib/api";
+import { ROYAL_MEDIA_NICHE_SLUG } from "../lib/royal";
 import { RoyalAssistantPanel } from "../components/RoyalAssistantPanel";
 
 type RootLibrary = {
@@ -204,13 +205,6 @@ export function MediaLibraryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    api<RootLibrary>("/api/media-library")
-      .then(setRoot)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
-
   const openNiche = async (nicheSlug: string) => {
     setError("");
     setPerson(null);
@@ -226,6 +220,25 @@ export function MediaLibraryPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    api<RootLibrary>("/api/media-library")
+      .then((data) => {
+        setRoot(data);
+        const royal =
+          data.niches?.find((n) => n.nicheSlug === ROYAL_MEDIA_NICHE_SLUG) ||
+          data.niches?.find((n) => /royal/i.test(n.niche) || /royal/i.test(n.nicheSlug));
+        if (royal) {
+          return openNiche(royal.nicheSlug);
+        }
+        setError("Royal Family media niche not found.");
+        setLoading(false);
+      })
+      .catch((e) => {
+        setError(e.message);
+        setLoading(false);
+      });
+  }, []);
 
   const openPerson = async (
     nicheSlug: string,
@@ -296,26 +309,19 @@ export function MediaLibraryPage() {
 
   return (
     <AppShell
-      title="Media Library"
+      title="Royal Media"
       breadcrumbs={
-        person ? `Media / ${person.person}` : niche ? niche.niche : "R2 shared library"
+        person
+          ? `Royal Media / ${person.person}`
+          : niche
+            ? `Royal Media / ${niche.niche}`
+            : "Royal Media"
       }
       actions={
         <div className="btn-row">
           {person && (
             <button className="btn btn-secondary" type="button" onClick={() => setPerson(null)}>
               ← Back
-            </button>
-          )}
-          {niche && !person && (
-            <button
-              className="btn btn-secondary"
-              type="button"
-              onClick={() => {
-                setNiche(null);
-              }}
-            >
-              ← Niches
             </button>
           )}
         </div>
@@ -325,24 +331,10 @@ export function MediaLibraryPage() {
       {loading && <LoadingState />}
 
       {!loading && !niche && !person && (
-        <div className="card-grid">
-          {(root?.niches || []).map((n) => (
-            <button
-              key={n.nicheSlug}
-              type="button"
-              className="card card-pad"
-              style={{ textAlign: "left", cursor: "pointer" }}
-              onClick={() => openNiche(n.nicheSlug)}
-            >
-              <h3 className="card-title">{n.niche}</h3>
-              <p className="dim" style={{ marginTop: 8 }}>
-                {n.peopleCount} people · {n.images} images · {rawClipsCount(n)} raw clips
-              </p>
-            </button>
-          ))}
-          {!root?.niches?.length && (
-            <div className="state-box">No niches yet. Collect images to populate the library.</div>
-          )}
+        <div className="state-box">
+          {root?.niches?.length
+            ? "Royal Family media niche not found."
+            : "No royal media yet. Collect images to populate the library."}
         </div>
       )}
 
