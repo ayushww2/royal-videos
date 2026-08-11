@@ -1,4 +1,4 @@
-export type LibraryMediaType = "image" | "raw_footage";
+export type LibraryMediaType = "image" | "raw_footage" | "trusted_clip";
 
 /** Royal emotion/context tags + freeform space topic tags */
 export type LibraryCategory = string;
@@ -39,6 +39,17 @@ export interface LibraryAsset {
   createdAt: string;
 }
 
+export interface PersonLibraryCounts {
+  images: number;
+  /** Legacy YouTube/raw ingest clips */
+  raw_footage: number;
+  /** Uploaded trusted packs (merged into raw clips in UI) */
+  trusted_clips: number;
+  /** raw_footage + trusted_clips — single "raw clips" total */
+  raw_clips: number;
+  byCategory: Partial<Record<string, number>>;
+}
+
 export interface PersonLibraryIndex {
   niche: string;
   nicheSlug: string;
@@ -47,11 +58,7 @@ export interface PersonLibraryIndex {
   /** Parent classification group */
   group?: string;
   updatedAt: string;
-  counts: {
-    images: number;
-    raw_footage: number;
-    byCategory: Partial<Record<string, number>>;
-  };
+  counts: PersonLibraryCounts;
   assets: LibraryAsset[];
 }
 
@@ -64,6 +71,8 @@ export interface NicheLibraryIndex {
     personSlug: string;
     images: number;
     raw_footage: number;
+    trusted_clips?: number;
+    raw_clips?: number;
     group?: string;
   }>;
 }
@@ -76,6 +85,8 @@ export interface RootLibraryIndex {
     peopleCount: number;
     images: number;
     raw_footage: number;
+    trusted_clips?: number;
+    raw_clips?: number;
   }>;
 }
 
@@ -85,4 +96,26 @@ export function slugify(input: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64);
+}
+
+/** Video clips shown as one "raw clips" bucket in Media Library. */
+export function isRawClipMediaType(mediaType: string | undefined): boolean {
+  return mediaType === "raw_footage" || mediaType === "trusted_clip";
+}
+
+export function countLibraryAssets(assets: LibraryAsset[]): PersonLibraryCounts {
+  const images = assets.filter((a) => a.mediaType === "image");
+  const rawFootage = assets.filter((a) => a.mediaType === "raw_footage");
+  const trusted = assets.filter((a) => a.mediaType === "trusted_clip");
+  const byCategory: PersonLibraryCounts["byCategory"] = {};
+  for (const a of assets) {
+    byCategory[a.category] = (byCategory[a.category] || 0) + 1;
+  }
+  return {
+    images: images.length,
+    raw_footage: rawFootage.length,
+    trusted_clips: trusted.length,
+    raw_clips: rawFootage.length + trusted.length,
+    byCategory,
+  };
 }

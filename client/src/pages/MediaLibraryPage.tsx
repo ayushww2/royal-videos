@@ -12,25 +12,31 @@ type RootLibrary = {
     peopleCount: number;
     images: number;
     raw_footage: number;
+    trusted_clips?: number;
+    raw_clips?: number;
   }>;
+};
+
+type NichePerson = {
+  person: string;
+  personSlug: string;
+  images: number;
+  raw_footage: number;
+  trusted_clips?: number;
+  raw_clips?: number;
+  group?: string;
 };
 
 type NicheLibrary = {
   niche: string;
   nicheSlug: string;
-  people: Array<{
-    person: string;
-    personSlug: string;
-    images: number;
-    raw_footage: number;
-    group?: string;
-  }>;
+  people: NichePerson[];
 };
 
 type LibraryAsset = {
   assetId: string;
   number: number;
-  mediaType: "image" | "raw_footage";
+  mediaType: "image" | "raw_footage" | "trusted_clip";
   category: string;
   r2Key: string;
   thumbKey?: string;
@@ -52,13 +58,80 @@ type PersonLibrary = {
   counts: {
     images: number;
     raw_footage: number;
+    trusted_clips?: number;
+    raw_clips?: number;
     byCategory: Record<string, number>;
   };
   assets: LibraryAsset[];
 };
 
+type MediaFilter = "all" | "image" | "raw_clips";
+
+const PEOPLE_ORDER = [
+  "king-charles",
+  "queen-camilla",
+  "prince-william",
+  "princess-catherine",
+  "prince-george",
+  "princess-charlotte",
+  "prince-louis",
+  "prince-harry",
+  "meghan-markle",
+  "princess-diana",
+  "princess-anne",
+  "sir-timothy-laurence",
+  "prince-edward",
+  "sophie-duchess-of-edinburgh",
+  "prince-andrew",
+  "sarah-ferguson",
+  "princess-beatrice",
+  "princess-eugenie",
+  "zara-tindall",
+  "laura-lopes",
+  "tom-parker-bowles",
+];
+
+const PLACE_SLUGS = new Set([
+  "topic-balmoral-castle",
+  "topic-buckingham-palace",
+  "topic-clarence-house",
+  "topic-highgrove-house",
+  "topic-kensington-palace",
+  "topic-palace-exterior",
+  "topic-parliament-downing-street",
+  "topic-royal-courts-of-justice",
+  "topic-sandringham",
+  "topic-st-george-s-chapel",
+  "topic-westminster-abbey",
+  "topic-windsor-castle",
+]);
+
+const CONTEXT_SLUGS = new Set([
+  "topic-black-cars-arriving",
+  "topic-church-exterior",
+  "topic-court-building",
+  "topic-london-street",
+  "topic-london-streets-media-areas",
+  "topic-press-outside-building",
+  "topic-royal-gates",
+  "topic-security-barriers",
+]);
+
+function rawClipsCount(p: {
+  raw_footage?: number;
+  trusted_clips?: number;
+  raw_clips?: number;
+}): number {
+  if (typeof p.raw_clips === "number") return p.raw_clips;
+  return Number(p.raw_footage || 0) + Number(p.trusted_clips || 0);
+}
+
 function assetUrl(r2Key: string): string {
   return `/api/media-library/asset?key=${encodeURIComponent(r2Key)}`;
+}
+
+function isRawClip(a: LibraryAsset): boolean {
+  return a.mediaType === "raw_footage" || a.mediaType === "trusted_clip";
 }
 
 function previewUrl(a: LibraryAsset): string | null {
@@ -79,13 +152,55 @@ function splitDescription(text: string): { visual: string; useFor: string | null
   return { visual: text.trim(), useFor: null };
 }
 
+function sectionForPerson(p: NichePerson): "People" | "Places" | "Context" {
+  const g = String(p.group || "").toLowerCase();
+  if (g === "places" || g === "place") return "Places";
+  if (g === "context" || g === "b-roll" || g === "broll") return "Context";
+  if (g === "people" || g === "person") return "People";
+  if (PLACE_SLUGS.has(p.personSlug)) return "Places";
+  if (CONTEXT_SLUGS.has(p.personSlug)) return "Context";
+  if (p.personSlug.startsWith("topic-") && !p.personSlug.startsWith("topic-extra-")) {
+    return /palace|castle|house|chapel|abbey|street|court|building|gates|sandringham|balmoral|windsor|westminster|kensington|clarence|highgrove|parliament/i.test(
+      p.personSlug
+    )
+      ? "Places"
+      : "Context";
+  }
+  return "People";
+}
+
+function groupPeople(people: NichePerson[]): Array<{ section: string; people: NichePerson[] }> {
+  const buckets: Record<string, NichePerson[]> = { People: [], Places: [], Context: [] };
+  for (const p of people) buckets[sectionForPerson(p)].push(p);
+  for (const key of Object.keys(buckets)) {
+    buckets[key].sort((a, b) => {
+      if (key === "People") {
+        const ai = PEOPLE_ORDER.indexOf(a.personSlug);
+        const bi = PEOPLE_ORDER.indexOf(b.personSlug);
+        const ao = ai >= 0 ? ai : 500;
+        const bo = bi >= 0 ? bi : 500;
+        if (ao !== bo) return ao - bo;
+      }
+      return a.person.localeCompare(b.person);
+    });
+  }
+  return ["People", "Places", "Context"]
+    .map((section) => ({ section, people: buckets[section] }))
+    .filter((s) => s.people.length > 0);
+}
+
 export function MediaLibraryPage() {
   const [root, setRoot] = useState<RootLibrary | null>(null);
   const [niche, setNiche] = useState<NicheLibrary | null>(null);
   const [person, setPerson] = useState<PersonLibrary | null>(null);
-  const [mediaType, setMediaType] = useState<"all" | "image" | "raw_footage">("image");
+  const [mediaType, setMediaType] = useState<MediaFilter>("image");
   const [category, setCategory] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedRawIds, setSelectedRawIds] = useState<string[]>([]);
+  const [selectingRaw, setSelectingRaw] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -99,6 +214,8 @@ export function MediaLibraryPage() {
   const openNiche = async (nicheSlug: string) => {
     setError("");
     setPerson(null);
+    setSelectedRawIds([]);
+    setSelectingRaw(false);
     setLoading(true);
     try {
       const data = await api<NicheLibrary>(`/api/media-library/${nicheSlug}`);
@@ -110,7 +227,12 @@ export function MediaLibraryPage() {
     }
   };
 
-  const openPerson = async (nicheSlug: string, personSlug: string, mt = mediaType, cat = category) => {
+  const openPerson = async (
+    nicheSlug: string,
+    personSlug: string,
+    mt: MediaFilter = mediaType,
+    cat = category
+  ) => {
     setError("");
     setLoading(true);
     try {
@@ -118,6 +240,7 @@ export function MediaLibraryPage() {
       const data = await api<PersonLibrary>(`/api/media-library/${nicheSlug}/${personSlug}?${q}`);
       setPerson(data);
       setSelectedId(data.assets[0]?.assetId || null);
+      setSelectedRawIds([]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -135,15 +258,47 @@ export function MediaLibraryPage() {
     return Object.keys(person.counts.byCategory || {}).sort();
   }, [person]);
 
+  const rawAssets = useMemo(() => (person?.assets || []).filter(isRawClip), [person]);
+
+  const toggleRawSelected = (assetId: string) => {
+    setSelectedRawIds((prev) =>
+      prev.includes(assetId) ? prev.filter((id) => id !== assetId) : [...prev, assetId]
+    );
+  };
+
+  const deleteSelectedRaw = async () => {
+    if (!person || !selectedRawIds.length) return;
+    setDeleting(true);
+    setError("");
+    try {
+      const res = await fetch(
+        `/api/media-library/${person.nicheSlug}/${person.personSlug}/raw/bulk-delete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ assetIds: selectedRawIds }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Delete failed");
+      setNotice(`Deleted ${data.deleted || selectedRawIds.length} raw clip(s)`);
+      setSelectingRaw(false);
+      setSelectedRawIds([]);
+      await openPerson(person.nicheSlug, person.personSlug, "raw_clips", "all");
+      setMediaType("raw_clips");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <AppShell
       title="Media Library"
       breadcrumbs={
-        person
-          ? `${person.niche} / ${person.person}`
-          : niche
-            ? niche.niche
-            : "R2 shared library"
+        person ? `Media / ${person.person}` : niche ? niche.niche : "R2 shared library"
       }
       actions={
         <div className="btn-row">
@@ -181,7 +336,7 @@ export function MediaLibraryPage() {
             >
               <h3 className="card-title">{n.niche}</h3>
               <p className="dim" style={{ marginTop: 8 }}>
-                {n.peopleCount} people · {n.images} images · {n.raw_footage} raw clips
+                {n.peopleCount} people · {n.images} images · {rawClipsCount(n)} raw clips
               </p>
             </button>
           ))}
@@ -192,48 +347,95 @@ export function MediaLibraryPage() {
       )}
 
       {!loading && niche && !person && (
-        <div style={{ display: "grid", gap: 18 }}>
-          {Object.entries(
-            niche.people.reduce<Record<string, typeof niche.people>>((acc, p) => {
-              const g = p.group || "People";
-              (acc[g] ||= []).push(p);
-              return acc;
-            }, {})
-          )
-            .sort(([a], [b]) => {
-              const order = (g: string) =>
-                g === "People"
-                  ? 0
-                  : g.startsWith("Exact")
-                    ? 1
-                    : g.startsWith("General")
-                      ? 2
-                      : g.startsWith("Extra")
-                        ? 3
-                        : 9;
-              return order(a) - order(b) || a.localeCompare(b);
-            })
-            .map(([group, people]) => (
-              <div key={group}>
-                <h3 style={{ margin: "0 0 10px", fontSize: 15, opacity: 0.85 }}>{group}</h3>
-                <div className="card-grid">
-                  {people.map((p) => (
-                    <button
-                      key={p.personSlug}
-                      type="button"
-                      className="card card-pad"
-                      style={{ textAlign: "left", cursor: "pointer" }}
-                      onClick={() => openPerson(niche.nicheSlug, p.personSlug)}
-                    >
-                      <h3 className="card-title">{p.person}</h3>
-                      <p className="dim" style={{ marginTop: 8 }}>
-                        {p.images} images · {p.raw_footage} raw clips
-                      </p>
-                    </button>
-                  ))}
-                </div>
+        <div style={{ display: "grid", gap: 22 }}>
+          <div className="card card-pad">
+            <div className="section-head" style={{ marginBottom: 8 }}>
+              <h3 className="card-title" style={{ margin: 0 }}>
+                Raw clips
+              </h3>
+              <span className="dim">Upload person zip packs (merged raw + trusted library clips)</span>
+            </div>
+            <label
+              className="btn btn-primary btn-sm"
+              style={{ cursor: uploading ? "wait" : "pointer", width: "fit-content" }}
+            >
+              {uploading ? "Uploading…" : "Upload raw clip packs"}
+              <input
+                type="file"
+                accept=".zip"
+                multiple
+                hidden
+                disabled={uploading}
+                onChange={async (e) => {
+                  const files = Array.from(e.target.files || []);
+                  e.target.value = "";
+                  if (!files.length) return;
+                  setUploading(true);
+                  setNotice("");
+                  setError("");
+                  try {
+                    const body = new FormData();
+                    for (const f of files) body.append("files", f);
+                    const res = await fetch("/api/media-library/trusted/bulk", {
+                      method: "POST",
+                      body,
+                      credentials: "include",
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || "Upload failed");
+                    const lines = (data.results || []).map((r: any) =>
+                      r.error
+                        ? `${r.file}: ${r.error}`
+                        : `${r.person || r.file}: +${r.added || 0} raw clips`
+                    );
+                    setNotice(lines.join(" · "));
+                    if (niche) await openNiche(niche.nicheSlug);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : String(err));
+                  } finally {
+                    setUploading(false);
+                  }
+                }}
+              />
+            </label>
+            {notice && (
+              <p className="help" style={{ marginTop: 10 }}>
+                {notice}
+              </p>
+            )}
+          </div>
+
+          {groupPeople(niche.people).map(({ section, people }) => (
+            <div key={section}>
+              <h3
+                style={{
+                  margin: "0 0 12px",
+                  fontSize: 18,
+                  fontFamily: "var(--font-display, Georgia, serif)",
+                  color: "var(--ivory, #faf7f7)",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                {section}
+              </h3>
+              <div className="card-grid">
+                {people.map((p) => (
+                  <button
+                    key={p.personSlug}
+                    type="button"
+                    className="card card-pad"
+                    style={{ textAlign: "left", cursor: "pointer" }}
+                    onClick={() => openPerson(niche.nicheSlug, p.personSlug)}
+                  >
+                    <h3 className="card-title">{p.person}</h3>
+                    <p className="dim" style={{ marginTop: 8 }}>
+                      {p.images} images · {rawClipsCount(p)} raw clips
+                    </p>
+                  </button>
+                ))}
               </div>
-            ))}
+            </div>
+          ))}
         </div>
       )}
 
@@ -244,14 +446,14 @@ export function MediaLibraryPage() {
               <select
                 value={mediaType}
                 onChange={(e) => {
-                  const v = e.target.value as typeof mediaType;
+                  const v = e.target.value as MediaFilter;
                   setMediaType(v);
                   openPerson(person.nicheSlug, person.personSlug, v, category);
                 }}
               >
                 <option value="all">All media</option>
                 <option value="image">Images only</option>
-                <option value="raw_footage">Raw footage only</option>
+                <option value="raw_clips">Raw clips only</option>
               </select>
               <select
                 value={category}
@@ -270,26 +472,124 @@ export function MediaLibraryPage() {
               </select>
               <span className="dim">
                 Showing {person.assets.length} · indexed {person.counts.images} images /{" "}
-                {person.counts.raw_footage} raw
+                {rawClipsCount(person.counts)} raw clips
               </span>
+              <button
+                type="button"
+                className={`btn btn-sm ${selectingRaw ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => {
+                  const next = !selectingRaw;
+                  setSelectingRaw(next);
+                  if (!next) setSelectedRawIds([]);
+                  if (next && mediaType !== "raw_clips") {
+                    setMediaType("raw_clips");
+                    openPerson(person.nicheSlug, person.personSlug, "raw_clips", category);
+                  }
+                }}
+              >
+                {selectingRaw ? "Selecting raw…" : "Select raw clips"}
+              </button>
+              {selectingRaw && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={!rawAssets.length}
+                    onClick={() => setSelectedRawIds(rawAssets.map((a) => a.assetId))}
+                  >
+                    Select all ({rawAssets.length})
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={!selectedRawIds.length}
+                    onClick={() => setSelectedRawIds([])}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    disabled={!selectedRawIds.length || deleting}
+                    onClick={() => void deleteSelectedRaw()}
+                  >
+                    {deleting ? "Deleting…" : `Delete selected (${selectedRawIds.length})`}
+                  </button>
+                </>
+              )}
+              <label
+                className="btn btn-secondary btn-sm"
+                style={{ cursor: uploading ? "wait" : "pointer" }}
+              >
+                {uploading ? "Uploading…" : "Upload raw clips"}
+                <input
+                  type="file"
+                  accept=".zip,video/mp4,video/quicktime,video/webm"
+                  multiple
+                  hidden
+                  disabled={uploading}
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files || []);
+                    e.target.value = "";
+                    if (!files.length || !person) return;
+                    setUploading(true);
+                    setNotice("");
+                    setError("");
+                    try {
+                      const body = new FormData();
+                      body.set("person", person.person);
+                      for (const f of files) body.append("files", f);
+                      const res = await fetch(
+                        `/api/media-library/${person.nicheSlug}/${person.personSlug}/trusted`,
+                        { method: "POST", body, credentials: "include" }
+                      );
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || "Upload failed");
+                      const added = (data.results || []).reduce(
+                        (n: number, r: { added?: number }) => n + (r.added || 0),
+                        0
+                      );
+                      setNotice(`Added ${added} raw clip(s)`);
+                      setMediaType("raw_clips");
+                      await openPerson(person.nicheSlug, person.personSlug, "raw_clips", "all");
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : String(err));
+                    } finally {
+                      setUploading(false);
+                    }
+                  }}
+                />
+              </label>
             </div>
+            {notice && (
+              <p className="help" style={{ marginTop: 8 }}>
+                {notice}
+              </p>
+            )}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1.5fr 0.7fr", gap: 14 }}>
             <div className="library-grid">
               {person.assets.map((a) => {
                 const thumb = previewUrl(a);
+                const checked = selectedRawIds.includes(a.assetId);
+                const selectable = selectingRaw && isRawClip(a);
                 return (
                   <button
                     key={a.assetId}
                     type="button"
-                    className={`library-card ${selectedId === a.assetId ? "active" : ""}`}
-                    onClick={() => setSelectedId(a.assetId)}
+                    className={`library-card ${selectedId === a.assetId ? "active" : ""} ${
+                      checked ? "checked" : ""
+                    }`}
+                    onClick={() => {
+                      if (selectable) toggleRawSelected(a.assetId);
+                      else setSelectedId(a.assetId);
+                    }}
                   >
-                    <div className="library-thumb">
+                    <div className="library-thumb" style={{ position: "relative" }}>
                       {thumb ? (
                         <img src={thumb} alt={clipLabel(a)} loading="lazy" />
-                      ) : a.mediaType === "raw_footage" ? (
+                      ) : isRawClip(a) ? (
                         <video
                           src={assetUrl(a.r2Key)}
                           muted
@@ -306,7 +606,12 @@ export function MediaLibraryPage() {
                       ) : (
                         <span className="dim">No preview</span>
                       )}
-                      {a.mediaType === "raw_footage" && <span className="raw-badge">RAW</span>}
+                      {isRawClip(a) && <span className="raw-badge">RAW</span>}
+                      {selectable && (
+                        <span className={`raw-check ${checked ? "on" : ""}`}>
+                          {checked ? "✓" : ""}
+                        </span>
+                      )}
                     </div>
                     <div className="library-meta">
                       <strong>
@@ -356,7 +661,14 @@ export function MediaLibraryPage() {
                               border: "1px solid rgba(255,255,255,0.08)",
                             }}
                           >
-                            <strong style={{ display: "block", marginBottom: 4, fontSize: 12, opacity: 0.75 }}>
+                            <strong
+                              style={{
+                                display: "block",
+                                marginBottom: 4,
+                                fontSize: 12,
+                                opacity: 0.75,
+                              }}
+                            >
                               USE FOR
                             </strong>
                             {parts.useFor}
@@ -402,7 +714,7 @@ export function MediaLibraryPage() {
                     </div>
                     <div className="kv-row">
                       <span>Type</span>
-                      <span>{selected.mediaType}</span>
+                      <span>{isRawClip(selected) ? "raw clip" : selected.mediaType}</span>
                     </div>
                     {(selected.startTime != null || selected.duration != null) && (
                       <div className="kv-row">

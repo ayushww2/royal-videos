@@ -1105,7 +1105,7 @@ export async function collectSpaceTopic(params: {
       personSlug,
       group,
       updatedAt: new Date().toISOString(),
-      counts: { images: 0, raw_footage: 0, byCategory: {} },
+      counts: { images: 0, raw_footage: 0, trusted_clips: 0, raw_clips: 0, byCategory: {} },
       assets: [],
     } satisfies PersonLibraryIndex);
 
@@ -1199,6 +1199,10 @@ export async function collectSpaceTopic(params: {
     counts: {
       images: images.length,
       raw_footage: assets.filter((a) => a.mediaType === "raw_footage").length,
+      trusted_clips: assets.filter((a) => a.mediaType === "trusted_clip").length,
+      raw_clips: assets.filter(
+        (a) => a.mediaType === "raw_footage" || a.mediaType === "trusted_clip"
+      ).length,
       byCategory,
     },
     assets: assets.sort((a, b) => a.number - b.number),
