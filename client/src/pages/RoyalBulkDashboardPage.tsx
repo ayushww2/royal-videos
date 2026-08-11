@@ -91,7 +91,7 @@ export function RoyalBulkDashboardPage() {
   return (
     <AppShell
       title="Royal v2 Bulk"
-      breadcrumbs="Documentary Video Factory / Royal v2 Bulk"
+      breadcrumbs="Royal Videos / Royal v2 Bulk"
       actions={<Link className="btn btn-primary" to="/new">New Royal v2 Job</Link>}
     >
       {error && <ErrorState message={error} />}
