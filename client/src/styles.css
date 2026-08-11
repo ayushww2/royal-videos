@@ -1,17 +1,17 @@
 :root {
-  --bg: #14080c;
-  --bg-elevated: #1a0d12;
-  --bg-card: #221016;
-  --bg-card-hover: #2a141c;
-  --border: rgba(248, 200, 200, 0.12);
-  --border-strong: rgba(248, 200, 200, 0.24);
-  --text: #faf7f7;
-  --text-muted: #d4b4b8;
-  --text-dim: #9a737a;
+  --bg: #1c1014;
+  --bg-elevated: #26161c;
+  --bg-card: #2a181f;
+  --bg-card-hover: #342028;
+  --border: rgba(248, 220, 220, 0.14);
+  --border-strong: rgba(248, 220, 220, 0.26);
+  --text: #ffffff;
+  --text-muted: #e8d0d4;
+  --text-dim: #c4a0a6;
   --accent: #e11d48;
   --accent-2: #9f1239;
-  --accent-soft: rgba(225, 29, 72, 0.14);
-  --ivory: #faf7f7;
+  --accent-soft: rgba(225, 29, 72, 0.16);
+  --ivory: #fffaf8;
   --crimson: #e11d48;
   --burgundy: #7f1d1d;
   --success: #34d399;
@@ -22,7 +22,7 @@
   --danger-soft: rgba(251, 113, 133, 0.14);
   --radius: 14px;
   --radius-sm: 10px;
-  --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  --shadow: 0 12px 36px rgba(40, 8, 16, 0.28);
   --sidebar-w: 248px;
   --header-h: 64px;
   --font: "Segoe UI", "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
@@ -61,7 +61,9 @@ button, input, textarea, select {
   top: 0;
   height: 100vh;
   border-right: 1px solid var(--border);
-  background: linear-gradient(180deg, #1a0a10 0%, #12070c 100%);
+  background:
+    linear-gradient(180deg, rgba(225, 29, 72, 0.12), transparent 28%),
+    linear-gradient(180deg, #3a1a24 0%, #2a121a 48%, #231018 100%);
   padding: 20px 14px;
   display: flex;
   flex-direction: column;
@@ -136,7 +138,7 @@ button, input, textarea, select {
   gap: 16px;
   padding: 0 28px;
   border-bottom: 1px solid var(--border);
-  background: rgba(20, 8, 12, 0.78);
+  background: rgba(38, 18, 24, 0.82);
   backdrop-filter: blur(10px);
   position: sticky;
   top: 0;
@@ -382,6 +384,7 @@ button, input, textarea, select {
   margin: 0 0 12px;
   font-size: 15px;
   font-weight: 600;
+  color: #ffffff;
 }
 .stat-card .label {
   color: var(--text-muted);
@@ -780,6 +783,96 @@ table.data tr:hover td { background: rgba(255,255,255,0.02); }
 .muted { color: var(--text-muted); }
 .dim { color: var(--text-dim); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fda4af;
+}
+.lede {
+  margin: 8px 0 0;
+  max-width: 46rem;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+.royal-roster {
+  display: grid;
+  gap: 28px;
+}
+.royal-roster-intro h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 500;
+  color: #ffffff;
+  letter-spacing: 0.01em;
+}
+.royal-roster-section {
+  display: grid;
+  gap: 14px;
+}
+.royal-roster-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(248, 220, 220, 0.16);
+}
+.royal-roster-section-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+.royal-roster-section-head span {
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+.royal-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.royal-person-tile {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  padding: 16px 16px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(248, 220, 220, 0.14);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.05), transparent 55%),
+    rgba(54, 28, 36, 0.72);
+  color: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.royal-person-tile:hover {
+  border-color: rgba(225, 29, 72, 0.45);
+  background:
+    linear-gradient(165deg, rgba(225, 29, 72, 0.12), transparent 55%),
+    rgba(64, 32, 40, 0.88);
+  transform: translateY(-1px);
+}
+.royal-person-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 500;
+  color: #ffffff;
+  line-height: 1.3;
+}
+.royal-person-meta {
+  font-size: 12px;
+  color: #d8b4b8;
+  line-height: 1.4;
+}
 .section-head {
   display: flex;
   justify-content: space-between;

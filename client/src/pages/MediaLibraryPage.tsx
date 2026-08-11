@@ -339,94 +339,37 @@ export function MediaLibraryPage() {
       )}
 
       {!loading && niche && !person && (
-        <div style={{ display: "grid", gap: 22 }}>
-          <div className="card card-pad">
-            <div className="section-head" style={{ marginBottom: 8 }}>
-              <h3 className="card-title" style={{ margin: 0 }}>
-                Raw clips
-              </h3>
-              <span className="dim">Upload person zip packs (merged raw + trusted library clips)</span>
-            </div>
-            <label
-              className="btn btn-primary btn-sm"
-              style={{ cursor: uploading ? "wait" : "pointer", width: "fit-content" }}
-            >
-              {uploading ? "Uploading…" : "Upload raw clip packs"}
-              <input
-                type="file"
-                accept=".zip"
-                multiple
-                hidden
-                disabled={uploading}
-                onChange={async (e) => {
-                  const files = Array.from(e.target.files || []);
-                  e.target.value = "";
-                  if (!files.length) return;
-                  setUploading(true);
-                  setNotice("");
-                  setError("");
-                  try {
-                    const body = new FormData();
-                    for (const f of files) body.append("files", f);
-                    const res = await fetch("/api/media-library/trusted/bulk", {
-                      method: "POST",
-                      body,
-                      credentials: "include",
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || "Upload failed");
-                    const lines = (data.results || []).map((r: any) =>
-                      r.error
-                        ? `${r.file}: ${r.error}`
-                        : `${r.person || r.file}: +${r.added || 0} raw clips`
-                    );
-                    setNotice(lines.join(" · "));
-                    if (niche) await openNiche(niche.nicheSlug);
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : String(err));
-                  } finally {
-                    setUploading(false);
-                  }
-                }}
-              />
-            </label>
-            {notice && (
-              <p className="help" style={{ marginTop: 10 }}>
-                {notice}
-              </p>
-            )}
-          </div>
+        <div className="royal-roster">
+          <header className="royal-roster-intro">
+            <p className="eyebrow">Royal Family library</p>
+            <h2>People, places &amp; context</h2>
+            <p className="lede">
+              Browse stills and raw clips organized by subject — open anyone to review or manage media.
+            </p>
+          </header>
 
           {groupPeople(niche.people).map(({ section, people }) => (
-            <div key={section}>
-              <h3
-                style={{
-                  margin: "0 0 12px",
-                  fontSize: 18,
-                  fontFamily: "var(--font-display, Georgia, serif)",
-                  color: "var(--ivory, #faf7f7)",
-                  letterSpacing: "0.02em",
-                }}
-              >
-                {section}
-              </h3>
-              <div className="card-grid">
+            <section key={section} className="royal-roster-section">
+              <div className="royal-roster-section-head">
+                <h3>{section}</h3>
+                <span>{people.length}</span>
+              </div>
+              <div className="royal-roster-grid">
                 {people.map((p) => (
                   <button
                     key={p.personSlug}
                     type="button"
-                    className="card card-pad"
-                    style={{ textAlign: "left", cursor: "pointer" }}
+                    className="royal-person-tile"
                     onClick={() => openPerson(niche.nicheSlug, p.personSlug)}
                   >
-                    <h3 className="card-title">{p.person}</h3>
-                    <p className="dim" style={{ marginTop: 8 }}>
+                    <span className="royal-person-name">{p.person}</span>
+                    <span className="royal-person-meta">
                       {p.images} images · {rawClipsCount(p)} raw clips
-                    </p>
+                    </span>
                   </button>
                 ))}
               </div>
-            </div>
+            </section>
           ))}
         </div>
       )}
