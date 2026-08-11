@@ -46,17 +46,37 @@ function personSearchNames(person: string): string[] {
   const p = person.toLowerCase();
   // Diana's Spencer family — must run before King Charles / Sarah Ferguson / Diana generics
   if (p.includes("frances") || p.includes("shand") || (p.includes("kydd") && !p.includes("parker")))
-    return ["Frances Shand Kydd", "Frances Ruth Roche", "Diana mother Frances Shand Kydd"];
+    return [
+      "Frances Shand Kydd",
+      "Frances Ruth Roche",
+      "Diana mother Frances Shand Kydd",
+      "Princess Diana mother Frances",
+    ];
   if (p.includes("mccorquodale") || (p.includes("sarah") && p.includes("lady") && !p.includes("ferguson")))
-    return ["Lady Sarah McCorquodale", "Sarah McCorquodale", "Diana sister Sarah Spencer"];
+    return [
+      "Lady Sarah McCorquodale",
+      "Sarah McCorquodale",
+      "Diana sister Sarah Spencer",
+      "Lady Sarah Spencer McCorquodale",
+    ];
   if (p.includes("fellowes") || (p.includes("jane") && p.includes("lady")))
-    return ["Lady Jane Fellowes", "Jane Fellowes", "Diana sister Jane Spencer"];
+    return [
+      "Lady Jane Fellowes",
+      "Jane Fellowes",
+      "Diana sister Jane Spencer",
+      "Lady Jane Spencer Fellowes",
+    ];
   if (
     (p.includes("spencer") && (p.includes("charles") || p.includes("earl"))) ||
     p === "charles spencer" ||
     p.includes("earl spencer")
   )
-    return ["Charles Spencer", "Earl Spencer", "Charles Spencer 9th Earl Spencer"];
+    return [
+      "Charles Spencer",
+      "Earl Spencer",
+      "Charles Spencer 9th Earl Spencer",
+      "Diana brother Charles Spencer",
+    ];
 
   if (p.includes("harry")) return ["Prince Harry", "Harry Duke of Sussex", "Prince Harry Sussex"];
   if (p.includes("catherine") || p.includes("kate"))
@@ -89,17 +109,17 @@ function personSearchNames(person: string): string[] {
 function personTitleHints(person: string): RegExp {
   const p = person.toLowerCase();
   if (p.includes("frances") || p.includes("shand") || (p.includes("kydd") && !p.includes("parker")))
-    return /\b(frances|shand.?kydd|ruth roche)\b/i;
+    return /\b(frances|shand.?kydd|ruth roche|diana'?s? mother|mother of (princess )?diana)\b/i;
   if (p.includes("mccorquodale") || (p.includes("sarah") && p.includes("lady") && !p.includes("ferguson")))
-    return /\b(mccorquodale|lady sarah|sarah spencer)\b/i;
+    return /\b(mccorquodale|lady sarah|sarah spencer|diana'?s? (elder )?sister|spencer sister)\b/i;
   if (p.includes("fellowes") || (p.includes("jane") && p.includes("lady")))
-    return /\b(fellowes|lady jane|jane spencer)\b/i;
+    return /\b(fellowes|lady jane|jane spencer|diana'?s? (middle )?sister|spencer sister)\b/i;
   if (
     (p.includes("spencer") && (p.includes("charles") || p.includes("earl"))) ||
     p === "charles spencer" ||
     p.includes("earl spencer")
   )
-    return /\b(charles spencer|earl spencer|viscount althorp|9th earl|althorp)\b/i;
+    return /\b(charles spencer|earl spencer|viscount althorp|9th earl|althorp|diana'?s? brother|brother of (princess )?diana)\b/i;
 
   if (p.includes("harry")) return /\b(harry|sussex)\b/i;
   if (p.includes("catherine") || p.includes("kate")) return /\b(catherine|kate|middleton|wales)\b/i;
