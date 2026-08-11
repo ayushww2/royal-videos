@@ -295,7 +295,13 @@ function buildCategoryQueries(person: string): Array<{ category: LibraryCategory
       { category: "event", query: `Frances Shand Kydd Diana mother photo landscape` },
       { category: "formal", query: `Frances Ruth Roche Shand Kydd formal photo` },
       { category: "sad", query: `Frances Shand Kydd funeral memorial photo` },
-      { category: "other", query: `Diana mother Frances Shand Kydd documentary photo` }
+      { category: "other", query: `Diana mother Frances Shand Kydd documentary photo` },
+      { category: "portrait", query: `Princess Diana mother Frances Shand Kydd archive photo` },
+      { category: "with_family", query: `Frances Shand Kydd Spencer family photo 1960s` },
+      { category: "formal", query: `Frances Shand Kydd wedding mother of the bride Diana` },
+      { category: "other", query: `Frances Ruth Roche young photo landscape` },
+      { category: "event", query: `Frances Shand Kydd Scotland Oban photo` },
+      { category: "smiling", query: `Frances Shand Kydd smiling vintage photograph` }
     );
   }
   if (/mccorquodale/i.test(person)) {
@@ -304,7 +310,12 @@ function buildCategoryQueries(person: string): Array<{ category: LibraryCategory
       { category: "with_family", query: `Lady Sarah McCorquodale Diana sister photo` },
       { category: "event", query: `Sarah McCorquodale royal funeral photo landscape` },
       { category: "formal", query: `Lady Sarah Spencer McCorquodale formal photo` },
-      { category: "other", query: `Diana sister Sarah McCorquodale documentary photograph` }
+      { category: "other", query: `Diana sister Sarah McCorquodale documentary photograph` },
+      { category: "with_family", query: `Sarah McCorquodale with Charles Spencer Jane Fellowes` },
+      { category: "event", query: `Lady Sarah McCorquodale Althorp photo` },
+      { category: "portrait", query: `Lady Sarah Spencer young portrait photograph` },
+      { category: "formal", query: `Sarah McCorquodale Diana funeral procession photo` },
+      { category: "smiling", query: `Lady Sarah McCorquodale smiling public photo` }
     );
   }
   if (/fellowes/i.test(person)) {
@@ -313,7 +324,12 @@ function buildCategoryQueries(person: string): Array<{ category: LibraryCategory
       { category: "with_family", query: `Lady Jane Fellowes Diana sister photo` },
       { category: "event", query: `Jane Fellowes royal funeral photo landscape` },
       { category: "formal", query: `Lady Jane Spencer Fellowes formal photo` },
-      { category: "other", query: `Diana sister Jane Fellowes documentary photograph` }
+      { category: "other", query: `Diana sister Jane Fellowes documentary photograph` },
+      { category: "with_family", query: `Jane Fellowes Spencer sisters photo` },
+      { category: "event", query: `Lady Jane Fellowes Westminster Abbey photo` },
+      { category: "portrait", query: `Lady Jane Spencer young portrait photograph` },
+      { category: "formal", query: `Baroness Fellowes Jane Diana funeral photo` },
+      { category: "smiling", query: `Lady Jane Fellowes smiling public photo` }
     );
   }
   if (/charles spencer|earl spencer/i.test(person)) {
@@ -351,7 +367,7 @@ function imageDescription(person: string, category: LibraryCategory, item: Googl
   return `${person} ${categoryText} image${source}, collected for documentary B-roll and visual matching.${titlePart} Query: ${query}`;
 }
 
-async function googleImageSearch(query: string, num = 20, page = 1): Promise<GoogleImageItem[]> {
+async function googleImageSearch(query: string, num = 20, page = 1, person = ""): Promise<GoogleImageItem[]> {
   const key = getSearchApiKey();
   const url = new URL("https://www.searchapi.io/api/v1/search");
   url.searchParams.set("engine", "google_images");
@@ -361,7 +377,12 @@ async function googleImageSearch(query: string, num = 20, page = 1): Promise<Goo
   url.searchParams.set("gl", "us");
   url.searchParams.set("safe", "active");
   url.searchParams.set("size", "large");
-  url.searchParams.set("aspect_ratio", "wide");
+  const spencerFamily =
+    /frances|shand|kydd|mccorquodale|fellowes|charles spencer|earl spencer/i.test(person);
+  // Archive press photos of Diana's family are often square/portrait — don't force wide-only
+  if (!spencerFamily) {
+    url.searchParams.set("aspect_ratio", "wide");
+  }
   if (page > 1) url.searchParams.set("page", String(page));
 
   const res = await fetch(url);
@@ -395,9 +416,14 @@ function looksClean(item: GoogleImageItem, person: string): { ok: boolean; reaso
 
   const w = item.original?.width || 0;
   const h = item.original?.height || 0;
+  const spencerFamily =
+    /frances|shand|kydd|mccorquodale|fellowes|charles spencer|earl spencer/i.test(person);
   if (w && h) {
-    if (w < 900 || h < 500) return { ok: false, reason: "too small" };
-    if (w / h < 1.25) return { ok: false, reason: "not landscape" };
+    const minW = spencerFamily ? 600 : 900;
+    const minH = spencerFamily ? 600 : 500;
+    const minRatio = spencerFamily ? 0.7 : 1.25;
+    if (w < minW || h < minH) return { ok: false, reason: "too small" };
+    if (w / h < minRatio) return { ok: false, reason: "not landscape" };
     if (w / h > 2.6) return { ok: false, reason: "too ultra-wide" };
   }
   if (title.length > 10 && !personTitleHints(person).test(title)) {
@@ -670,7 +696,7 @@ export async function collectPersonImages(params: {
       log(`[library] ${person}: ${query} (page ${page})`);
       let results: GoogleImageItem[] = [];
       try {
-        results = await googleImageSearch(query, 22, page);
+        results = await googleImageSearch(query, 22, page, person);
       } catch (err) {
         log(`[library] search failed: ${err instanceof Error ? err.message : err}`);
         break;
