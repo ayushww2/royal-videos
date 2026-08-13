@@ -84,6 +84,12 @@ export interface LibraryAsset {
   title?: string;
   /** Human-readable clip description for UI / editors */
   description?: string;
+  /** Context library: documentary subcategory label */
+  subcategory?: string;
+  /** Context library: visual type (document, exterior, press, etc.) */
+  visualType?: string;
+  /** Context library: SearchAPI query that found this asset */
+  searchQuery?: string;
   /** When a vision model wrote the editor description */
   visionDescribedAt?: string;
   /** Model id used for visionDescribedAt */

@@ -96,6 +96,18 @@ const PEOPLE_ORDER = [
   "tom-parker-bowles",
 ];
 
+const ROYAL_CONTEXT_GROUP = "Royal Context Assets";
+
+const ROYAL_CONTEXT_ORDER = [
+  "ctx-documents-letters",
+  "ctx-royal-estates",
+  "ctx-study-archive",
+  "ctx-press-media",
+  "ctx-memory-emotional",
+  "ctx-travel-arrival",
+  "ctx-private-meetings",
+];
+
 const PLACE_SLUGS = new Set([
   "topic-balmoral-castle",
   "topic-buckingham-palace",
@@ -157,8 +169,9 @@ function splitDescription(text: string): { visual: string; useFor: string | null
   return { visual: text.trim(), useFor: null };
 }
 
-function sectionForPerson(p: NichePerson): "People" | "Places" | "Context" {
+function sectionForPerson(p: NichePerson): "People" | "Royal Context Assets" | "Places" | "Context" {
   const g = String(p.group || "").toLowerCase();
+  if (g === "royal context assets" || p.personSlug.startsWith("ctx-")) return "Royal Context Assets";
   if (g === "places" || g === "place") return "Places";
   if (g === "context" || g === "b-roll" || g === "broll") return "Context";
   if (g === "people" || g === "person") return "People";
@@ -175,7 +188,12 @@ function sectionForPerson(p: NichePerson): "People" | "Places" | "Context" {
 }
 
 function groupPeople(people: NichePerson[]): Array<{ section: string; people: NichePerson[] }> {
-  const buckets: Record<string, NichePerson[]> = { People: [], Places: [], Context: [] };
+  const buckets: Record<string, NichePerson[]> = {
+    People: [],
+    "Royal Context Assets": [],
+    Places: [],
+    Context: [],
+  };
   for (const p of people) buckets[sectionForPerson(p)].push(p);
   for (const key of Object.keys(buckets)) {
     buckets[key].sort((a, b) => {
@@ -186,10 +204,17 @@ function groupPeople(people: NichePerson[]): Array<{ section: string; people: Ni
         const bo = bi >= 0 ? bi : 500;
         if (ao !== bo) return ao - bo;
       }
+      if (key === "Royal Context Assets") {
+        const ai = ROYAL_CONTEXT_ORDER.indexOf(a.personSlug);
+        const bi = ROYAL_CONTEXT_ORDER.indexOf(b.personSlug);
+        const ao = ai >= 0 ? ai : 500;
+        const bo = bi >= 0 ? bi : 500;
+        if (ao !== bo) return ao - bo;
+      }
       return a.person.localeCompare(b.person);
     });
   }
-  return ["People", "Places", "Context"]
+  return ["People", "Royal Context Assets", "Places", "Context"]
     .map((section) => ({ section, people: buckets[section] }))
     .filter((s) => s.people.length > 0);
 }
@@ -346,9 +371,10 @@ export function MediaLibraryPage() {
         <div className="royal-roster">
           <header className="royal-roster-intro">
             <p className="eyebrow">Royal Family library</p>
-            <h2>People, places &amp; context</h2>
+            <h2>People &amp; context assets</h2>
             <p className="lede">
-              Browse stills and raw clips organized by subject — open anyone to review or manage media.
+              Browse royal people stills and raw clips, plus reusable documentary context images (documents,
+              estates, press, travel, and more).
             </p>
           </header>
 

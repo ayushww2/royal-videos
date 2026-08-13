@@ -17,6 +17,8 @@ import {
   ROYAL_PEOPLE,
 } from "./describeRoyal.js";
 import { classifyAllRoyalPeople, classifyRoyalPerson } from "./classifyRoyal.js";
+import { collectAllRoyalContextAssets, collectRoyalContextCategory } from "./collectRoyalContext.js";
+import { ROYAL_CONTEXT_CATEGORIES } from "./royalContextQueries.js";
 import { scanAllRoyalPeople, scanRoyalPerson } from "./scanRoyal.js";
 import {
   bulkDeleteRawClips,
@@ -310,6 +312,47 @@ export function registerLibraryRoutes(app: Express): void {
           }
         } catch (err) {
           console.error("[library] classify-royal failed", err);
+        }
+      })();
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post("/api/media-library/collect-royal-context", async (req, res) => {
+    try {
+      if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
+      const all = Boolean(req.body?.all);
+      const category = String(req.body?.category || "").trim();
+      const categorySlug = String(req.body?.categorySlug || "").trim();
+      const categories = Array.isArray(req.body?.categories) ? req.body.categories.map(String) : undefined;
+      if (!all && !category && !categorySlug && !categories?.length) {
+        return res.status(400).json({
+          error: "category, categorySlug, categories[], or all:true required",
+          categories: ROYAL_CONTEXT_CATEGORIES.map((c) => ({
+            category: c.category,
+            personSlug: c.personSlug,
+            queries: c.queries.length,
+          })),
+        });
+      }
+      res.json({ ok: true, started: true, all, category: category || null, categorySlug: categorySlug || null });
+      void (async () => {
+        try {
+          if (all || categories?.length) {
+            await collectAllRoyalContextAssets({
+              categories: categories || undefined,
+              onProgress: (m) => console.log(m),
+            });
+          } else {
+            await collectRoyalContextCategory({
+              categoryName: category || undefined,
+              categorySlug: categorySlug || undefined,
+              onProgress: (m) => console.log(m),
+            });
+          }
+        } catch (err) {
+          console.error("[library] collect-royal-context failed", err);
         }
       })();
     } catch (err) {

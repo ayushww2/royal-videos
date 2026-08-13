@@ -495,7 +495,7 @@ function buildPersonIndex(
   };
 }
 
-async function persistPersonLibraryIndexes(personIndex: PersonLibraryIndex): Promise<void> {
+export async function persistPersonLibraryIndexes(personIndex: PersonLibraryIndex): Promise<void> {
   const { niche, nicheSlug, person, personSlug } = personIndex;
 
   // Preserve images / raw / trusted clips added in parallel that this process didn't load.
@@ -550,6 +550,7 @@ async function persistPersonLibraryIndexes(personIndex: PersonLibraryIndex): Pro
     raw_footage: counts.raw_footage,
     trusted_clips: counts.trusted_clips,
     raw_clips: counts.raw_clips,
+    group: personIndex.group || peopleMap.get(personSlug)?.group,
   });
   const nicheOut: NicheLibraryIndex = {
     niche,
