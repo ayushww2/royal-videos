@@ -3,6 +3,62 @@ export type LibraryMediaType = "image" | "raw_footage" | "trusted_clip";
 /** Royal emotion/context tags + freeform space topic tags */
 export type LibraryCategory = string;
 
+export type RoyalPeopleType = "solo" | "two_people" | "family" | "small_group" | "crowd";
+export type RoyalMood =
+  | "happy"
+  | "serious"
+  | "sad"
+  | "angry_tense"
+  | "emotional"
+  | "surprised"
+  | "neutral";
+export type RoyalShot = "close_up" | "medium" | "full_body" | "wide";
+export type RoyalAction =
+  | "posing"
+  | "standing"
+  | "sitting"
+  | "walking"
+  | "waving"
+  | "smiling"
+  | "laughing"
+  | "speaking"
+  | "listening"
+  | "greeting"
+  | "shaking_hands"
+  | "hugging"
+  | "looking_down"
+  | "looking_away"
+  | "entering"
+  | "leaving"
+  | "vehicle"
+  | "ceremony"
+  | "crowd_interaction"
+  | "other";
+export type RoyalContext =
+  | "general"
+  | "royal_duty"
+  | "formal_event"
+  | "family"
+  | "relationship"
+  | "public_appearance"
+  | "speech_interview"
+  | "church_memorial"
+  | "celebration"
+  | "travel_arrival"
+  | "palace_residence"
+  | "press"
+  | "other";
+
+export interface RoyalClassification {
+  people?: string[];
+  people_type: RoyalPeopleType;
+  mood: RoyalMood;
+  shot: RoyalShot;
+  action: RoyalAction;
+  context: RoyalContext;
+  description: string;
+}
+
 export interface LibraryAsset {
   /** Stable id for product integration, e.g. royal-v1-king-charles-img-0042 */
   assetId: string;
@@ -32,6 +88,22 @@ export interface LibraryAsset {
   visionDescribedAt?: string;
   /** Model id used for visionDescribedAt */
   visionModel?: string;
+  /** Simple documentary editor labels (people count in frame) */
+  peopleType?: RoyalPeopleType;
+  /** Obvious visual mood for quick asset filtering */
+  mood?: RoyalMood;
+  /** Framing / shot size */
+  shot?: RoyalShot;
+  /** Primary visible action of the main person */
+  action?: RoyalAction;
+  /** Broad scene context */
+  context?: RoyalContext;
+  /** Primary folder person plus other clearly identifiable royals visible in frame */
+  people?: string[];
+  /** When classification labels were written */
+  classifiedAt?: string;
+  /** Model id used for classifiedAt */
+  classifyModel?: string;
   /** Clip timing in source video when known */
   startTime?: number;
   endTime?: number;

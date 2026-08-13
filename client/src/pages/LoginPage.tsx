@@ -64,8 +64,8 @@ export function LoginPage() {
         <div className="login-brand">
           <div className="brand-mark" />
           <div>
-            <h1>Documentary Video Factory</h1>
-            <p>Sign in to continue</p>
+            <h1>Royal Videos</h1>
+            <p>Sign in to the royal production console</p>
           </div>
         </div>
         <div className="field">
