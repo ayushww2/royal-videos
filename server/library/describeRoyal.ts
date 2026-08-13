@@ -341,6 +341,7 @@ export const ROYAL_PEOPLE = [
   "Princess Eugenie",
   "Zara Tindall",
   "Laura Lopes",
+  "Tom Parker Bowles",
 ] as const;
 
 /** Sequential describe for all known royal people. */

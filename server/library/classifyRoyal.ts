@@ -401,12 +401,33 @@ function pickEnum<T extends string>(value: unknown, allowed: Set<T>, fallback: T
   return allowed.has(v) ? v : fallback;
 }
 
-function normalizeRow(row: Partial<RoyalClassification>): RoyalClassification {
+function normalizePeople(raw: unknown, primary: string): string[] {
+  const primaryTrim = primary.trim();
+  const fromModel = Array.isArray(raw)
+    ? raw.map((x) => String(x || "").trim()).filter(Boolean)
+    : [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (name: string) => {
+    const n = name.trim();
+    if (!n || seen.has(n)) return;
+    seen.add(n);
+    out.push(n);
+  };
+  push(primaryTrim);
+  for (const name of fromModel) {
+    if (name !== primaryTrim) push(name);
+  }
+  return out.length ? out : [primaryTrim];
+}
+
+function normalizeRow(row: Partial<RoyalClassification>, primary: string): RoyalClassification {
   const description = String(row.description || "")
     .trim()
     .replace(/^["']|["']$/g, "")
     .replace(/\s+/g, " ");
   return {
+    people: normalizePeople(row.people, primary),
     people_type: pickEnum(row.people_type, PEOPLE_TYPES, "solo"),
     mood: pickEnum(row.mood, MOODS, "neutral"),
     shot: pickEnum(row.shot, SHOTS, "medium"),
@@ -423,6 +444,7 @@ function applyClassification(asset: LibraryAsset, row: RoyalClassification, mode
   asset.action = row.action;
   asset.context = row.context;
   asset.description = row.description;
+  asset.people = normalizePeople(row.people, asset.person);
   asset.classifiedAt = new Date().toISOString();
   asset.classifyModel = model;
 }
@@ -463,7 +485,9 @@ Existing metadata (may be wrong — trust the pixels):
 ${hintLines}
 
 Return JSON only with one object per visual:
-{"items":[{"index":0,"people_type":"solo","mood":"happy","shot":"close_up","action":"smiling","context":"general","description":"One factual sentence."}]}`,
+{"items":[{"index":0,"people":["King Charles"],"people_type":"solo","mood":"happy","shot":"close_up","action":"smiling","context":"general","description":"One factual sentence."}]}
+
+Also return \`people\`: an array of clearly identifiable important people visible. Always include the main folder person first. For solo shots use only that person. For two-person shots include both visible royals by full name when identifiable.`,
     },
   ];
   for (const v of visuals) {
@@ -501,7 +525,7 @@ Return JSON only with one object per visual:
       parsed.items?.find((x) => x.index === i) ||
       parsed.items?.[i] ||
       ({} as Partial<RoyalClassification>);
-    out.set(assets[i].assetId, normalizeRow(row));
+    out.set(assets[i].assetId, normalizeRow(row, person));
   }
   return out;
 }
@@ -526,6 +550,7 @@ async function persistPerson(idx: PersonLibraryIndex): Promise<void> {
         r2Key: a.r2Key,
         description: a.description,
         peopleType: a.peopleType,
+        people: a.people,
         mood: a.mood,
         shot: a.shot,
         action: a.action,

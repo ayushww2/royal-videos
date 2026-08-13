@@ -50,6 +50,7 @@ export type RoyalContext =
   | "other";
 
 export interface RoyalClassification {
+  people?: string[];
   people_type: RoyalPeopleType;
   mood: RoyalMood;
   shot: RoyalShot;
@@ -97,6 +98,8 @@ export interface LibraryAsset {
   action?: RoyalAction;
   /** Broad scene context */
   context?: RoyalContext;
+  /** Primary folder person plus other clearly identifiable royals visible in frame */
+  people?: string[];
   /** When classification labels were written */
   classifiedAt?: string;
   /** Model id used for classifiedAt */
