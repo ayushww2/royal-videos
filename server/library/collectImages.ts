@@ -33,6 +33,8 @@ const BAD_TITLE = [
   "vector",
   "cartoon",
   "ai generated",
+  "reddit",
+  "r/royalty",
 ];
 
 interface GoogleImageItem {
@@ -88,7 +90,8 @@ function personTitleHints(person: string): RegExp {
   if (p.includes("beatrice")) return /\b(beatrice)\b/i;
   if (p.includes("zara")) return /\b(zara|tindall|phillips)\b/i;
   if (p.includes("sophie")) return /\b(sophie|edinburgh|wessex)\b/i;
-  if (p.includes("edward") && !p.includes("andrew")) return /\b(edward|edinburgh|wessex)\b/i;
+  if (p.includes("edward") && !p.includes("andrew") && !p.includes("island"))
+    return /\b(prince edward|duke of edinburgh|earl of wessex|edward windsor)\b/i;
   if (p.includes("ferguson") || p.includes("sarah")) return /\b(sarah|ferguson|fergie)\b/i;
   if (p.includes("diana")) return /\b(diana|spencer)\b/i;
   if (p.includes("timothy") || p.includes("laurence")) return /\b(timothy|laurence)\b/i;
@@ -295,6 +298,10 @@ function looksClean(item: GoogleImageItem, person: string): { ok: boolean; reaso
   if (BAD_HOSTS.some((h) => hay.includes(h))) return { ok: false, reason: "watermark host" };
   if (BAD_TITLE.some((t) => title.includes(t))) return { ok: false, reason: "bad title" };
   if (/\b(lorem|stock vector|clipart)\b/i.test(title)) return { ok: false, reason: "graphic" };
+  if (/\bprince edward island\b|\bpei\b|edward island national|red earth prince edward/i.test(hay)) {
+    return { ok: false, reason: "prince edward island" };
+  }
+  if (/\b(reddit|r\/|imgur\.com\/)\b/i.test(hay)) return { ok: false, reason: "meme host" };
   // Reject obvious non-person landscape / travel stock that SearchAPI sometimes mixes in
   if (
     /\b(yosemite|bushkill|cathedral rocks|national park|fstoppers|waterfall|mountain range|coast path expands)\b/i.test(
