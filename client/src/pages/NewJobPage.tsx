@@ -16,7 +16,7 @@ type ElevenLabsOptions = {
 export function NewJobPage() {
   const nav = useNavigate();
   const [title, setTitle] = useState("");
-  const [niche, setNiche] = useState("Celebrity v1");
+  const [niche, setNiche] = useState("Royal v2");
   const [script, setScript] = useState("");
   const [scriptFile, setScriptFile] = useState<File | null>(null);
   const [voiceoverMode, setVoiceoverMode] = useState<"upload" | "elevenlabs">("elevenlabs");
@@ -72,7 +72,7 @@ export function NewJobPage() {
     setError("");
     setUploadProgress(15);
     const fd = new FormData();
-    fd.set("title", title || "Untitled Documentary");
+    fd.set("title", title || "Untitled Royal Video");
     fd.set("niche", niche);
     fd.set("script", script);
     fd.set("voiceoverMode", voiceoverMode);
@@ -106,7 +106,7 @@ export function NewJobPage() {
   }
 
   return (
-    <AppShell title="New Job" breadcrumbs="Documentary Video Factory / New Job">
+    <AppShell title="New Job" breadcrumbs="Royal Videos / New Job">
       {error && <ErrorState message={error} />}
       <form onSubmit={onSubmit} className="page-grid">
         <div className="card card-pad">
@@ -297,7 +297,7 @@ export function NewJobPage() {
               ? voiceoverMode === "elevenlabs"
                 ? "Generating voiceover..."
                 : "Starting pipeline..."
-              : "Generate Documentary"}
+              : "Generate Royal Video"}
           </button>
         </div>
       </form>
