@@ -327,6 +327,10 @@ export const ROYAL_PEOPLE = [
   "Prince Harry",
   "Meghan Markle",
   "Princess Diana",
+  "Frances Shand Kydd",
+  "Lady Sarah McCorquodale",
+  "Lady Jane Fellowes",
+  "Charles Spencer",
   "Princess Anne",
   "Sir Timothy Laurence",
   "Prince Edward",
@@ -337,6 +341,7 @@ export const ROYAL_PEOPLE = [
   "Princess Eugenie",
   "Zara Tindall",
   "Laura Lopes",
+  "Tom Parker Bowles",
 ] as const;
 
 /** Sequential describe for all known royal people. */

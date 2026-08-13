@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { ErrorState, LoadingState, StatusBadge } from "../components/Badges";
 import { api, formatDate } from "../lib/api";
+import { isRoyalJobNiche } from "../lib/royal";
 import { JobRecord, friendlyStatus } from "../lib/types";
 
 export function RenderQueuePage() {
@@ -14,11 +15,21 @@ export function RenderQueuePage() {
     api<{ jobs: JobRecord[] }>("/api/jobs")
       .then((d) =>
         setJobs(
-          (d.jobs || []).filter((j) =>
-            ["ready_for_scene_review", "scene_review_ready", "approved", "render_queued", "rendering", "completed", "failed"].includes(j.status) ||
-            j.render?.status === "completed" ||
-            j.render?.status === "queued" ||
-            j.render?.status === "rendering"
+          (d.jobs || []).filter(
+            (j) =>
+              isRoyalJobNiche(j.niche) &&
+              ([
+                "ready_for_scene_review",
+                "scene_review_ready",
+                "approved",
+                "render_queued",
+                "rendering",
+                "completed",
+                "failed",
+              ].includes(j.status) ||
+                j.render?.status === "completed" ||
+                j.render?.status === "queued" ||
+                j.render?.status === "rendering")
           )
         )
       )
@@ -27,7 +38,7 @@ export function RenderQueuePage() {
   }, []);
 
   return (
-    <AppShell title="Render Queue" breadcrumbs="Documentary Video Factory / Render Queue">
+    <AppShell title="Render Queue" breadcrumbs="Royal Videos / Render Queue">
       {error && <ErrorState message={error} />}
       {loading ? (
         <LoadingState />
@@ -62,7 +73,7 @@ export function RenderQueuePage() {
               {!jobs.length && (
                 <tr>
                   <td colSpan={5} className="muted">
-                    No jobs in render queue yet.
+                    No royal jobs in render queue yet.
                   </td>
                 </tr>
               )}
