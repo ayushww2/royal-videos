@@ -24,6 +24,11 @@ import { ROYAL_NICHE_SLUG, ROYAL_PEOPLE } from "./describeRoyal.js";
 
 const MODEL = optionalEnv("ROYAL_VISION_MODEL") || config.openaiModel || "gpt-5.6-terra";
 const BATCH_SIZE = Math.max(1, Math.min(8, Number(process.env.ROYAL_CLASSIFY_BATCH || 6)));
+const BATCH_CONCURRENCY = Math.max(
+  1,
+  Math.min(12, Number(process.env.ROYAL_CLASSIFY_BATCH_CONCURRENCY || 4))
+);
+const DEFAULT_WORKERS = Math.max(1, Math.min(25, Number(process.env.ROYAL_CLASSIFY_WORKERS || 8)));
 const PREVIEW_WIDTH = Math.max(160, Number(process.env.ROYAL_VISION_WIDTH || 320));
 const FLUSH_EVERY = Math.max(5, Number(process.env.ROYAL_CLASSIFY_FLUSH_EVERY || 24));
 
@@ -537,11 +542,33 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+/** Run async tasks with a fixed worker pool. */
+async function runPool<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  if (!items.length) return [];
+  const workers = Math.max(1, Math.min(concurrency, items.length));
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const runWorker = async () => {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await fn(items[index], index);
+    }
+  };
+  await Promise.all(Array.from({ length: workers }, () => runWorker()));
+  return results;
+}
+
 /** Classify images and raw clips for one royal person. Additive — never deletes assets. */
 export async function classifyRoyalPerson(params: {
   person: string;
   force?: boolean;
   limit?: number;
+  batchConcurrency?: number;
   onProgress?: (msg: string) => void;
 }): Promise<ClassifyRoyalProgress> {
   if (!r2Configured()) throw new Error("R2 not configured");
@@ -549,6 +576,10 @@ export async function classifyRoyalPerson(params: {
   const personSlug = slugify(person);
   const force = Boolean(params.force);
   const limit = Math.max(0, Number(params.limit || 0));
+  const batchConcurrency = Math.max(
+    1,
+    Math.min(12, Number(params.batchConcurrency || BATCH_CONCURRENCY))
+  );
   const log = params.onProgress || console.log;
 
   const idx = await r2GetJson<PersonLibraryIndex>(
@@ -571,14 +602,33 @@ export async function classifyRoyalPerson(params: {
   };
 
   log(
-    `[royal-classify] ${person}: todo=${todo.length} skipped=${progress.skipped} model=${MODEL} (images+raw clips)`
+    `[royal-classify] ${person}: todo=${todo.length} skipped=${progress.skipped} model=${MODEL} batchConcurrency=${batchConcurrency} (images+raw clips)`
   );
   let sinceFlush = 0;
   const byId = new Map(idx.assets.map((a) => [a.assetId, a]));
+  const batches = chunk(todo, BATCH_SIZE);
 
-  for (const batch of chunk(todo, BATCH_SIZE)) {
-    try {
-      const results = await classifyBatch(person, batch);
+  for (const batchGroup of chunk(batches, batchConcurrency)) {
+    const groupResults = await Promise.all(
+      batchGroup.map(async (batch) => {
+        try {
+          return { batch, results: await classifyBatch(person, batch), err: null as string | null };
+        } catch (err) {
+          return {
+            batch,
+            results: null as Map<string, RoyalClassification> | null,
+            err: err instanceof Error ? err.message : String(err),
+          };
+        }
+      })
+    );
+
+    for (const { batch, results, err } of groupResults) {
+      if (err || !results) {
+        progress.failed += batch.length;
+        log(`[royal-classify] batch failed ${person}: ${err || "empty results"}`);
+        continue;
+      }
       for (const asset of batch) {
         const row = results.get(asset.assetId);
         const live = byId.get(asset.assetId);
@@ -590,15 +640,13 @@ export async function classifyRoyalPerson(params: {
         progress.classified += 1;
         sinceFlush += 1;
       }
-      if (sinceFlush >= FLUSH_EVERY) {
-        idx.assets = [...byId.values()];
-        await persistPerson(idx);
-        sinceFlush = 0;
-        log(`[royal-classify] flushed ${person} classified=${progress.classified}`);
-      }
-    } catch (err) {
-      progress.failed += batch.length;
-      log(`[royal-classify] batch failed ${person}: ${err instanceof Error ? err.message : err}`);
+    }
+
+    if (sinceFlush >= FLUSH_EVERY) {
+      idx.assets = [...byId.values()];
+      await persistPerson(idx);
+      sinceFlush = 0;
+      log(`[royal-classify] flushed ${person} classified=${progress.classified}`);
     }
   }
 
@@ -610,31 +658,46 @@ export async function classifyRoyalPerson(params: {
   return progress;
 }
 
-/** Sequential classification for all known royal people. */
+/** Parallel classification for all known royal people (one worker per person). */
 export async function classifyAllRoyalPeople(params?: {
   force?: boolean;
   limitPerPerson?: number;
   people?: string[];
+  workers?: number;
+  batchConcurrency?: number;
   onProgress?: (msg: string) => void;
 }): Promise<ClassifyRoyalProgress[]> {
   const list =
     params?.people?.length ? params.people : ([...ROYAL_PEOPLE] as unknown as string[]);
-  const out: ClassifyRoyalProgress[] = [];
-  for (const person of list) {
+  const workers = Math.max(1, Math.min(25, Number(params?.workers || DEFAULT_WORKERS)));
+  const batchConcurrency = Math.max(
+    1,
+    Math.min(12, Number(params?.batchConcurrency || BATCH_CONCURRENCY))
+  );
+  const log = params?.onProgress || console.log;
+  log(
+    `[royal-classify] starting ${list.length} people with workers=${workers} batchConcurrency=${batchConcurrency}`
+  );
+
+  return runPool(list, workers, async (person) => {
     try {
-      out.push(
-        await classifyRoyalPerson({
-          person,
-          force: params?.force,
-          limit: params?.limitPerPerson,
-          onProgress: params?.onProgress,
-        })
-      );
+      return await classifyRoyalPerson({
+        person,
+        force: params?.force,
+        limit: params?.limitPerPerson,
+        batchConcurrency,
+        onProgress: log,
+      });
     } catch (err) {
-      params?.onProgress?.(
-        `[royal-classify] skip ${person}: ${err instanceof Error ? err.message : err}`
-      );
+      log(`[royal-classify] skip ${person}: ${err instanceof Error ? err.message : err}`);
+      return {
+        person,
+        personSlug: slugify(person),
+        examined: 0,
+        classified: 0,
+        skipped: 0,
+        failed: 0,
+      } satisfies ClassifyRoyalProgress;
     }
-  }
-  return out;
+  });
 }

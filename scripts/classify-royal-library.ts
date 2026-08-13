@@ -18,12 +18,15 @@ async function main() {
   const person = process.env.ROYAL_CLASSIFY_PERSON?.trim();
   const force = process.env.ROYAL_CLASSIFY_FORCE === "1";
   const limit = Math.max(0, Number(process.env.ROYAL_CLASSIFY_LIMIT || 0));
+  const workers = Math.max(0, Number(process.env.ROYAL_CLASSIFY_WORKERS || 0));
+  const batchConcurrency = Math.max(0, Number(process.env.ROYAL_CLASSIFY_BATCH_CONCURRENCY || 0));
 
   if (person) {
     const result = await classifyRoyalPerson({
       person,
       force,
       limit: limit || undefined,
+      batchConcurrency: batchConcurrency || undefined,
       onProgress: console.log,
     });
     console.log(JSON.stringify(result, null, 2));
@@ -34,6 +37,8 @@ async function main() {
   const results = await classifyAllRoyalPeople({
     force,
     limitPerPerson: limit || undefined,
+    workers: workers || undefined,
+    batchConcurrency: batchConcurrency || undefined,
     onProgress: console.log,
   });
   console.log(

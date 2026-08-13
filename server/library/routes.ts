@@ -272,11 +272,22 @@ export function registerLibraryRoutes(app: Express): void {
       const all = Boolean(req.body?.all);
       const force = Boolean(req.body?.force);
       const limit = Number(req.body?.limit || 0);
+      const workers = Number(req.body?.workers || 0);
+      const batchConcurrency = Number(req.body?.batchConcurrency || 0);
       const people = Array.isArray(req.body?.people) ? req.body.people.map(String) : undefined;
       if (!all && !person && !people?.length) {
         return res.status(400).json({ error: "person required (or all:true or people:[])" });
       }
-      res.json({ ok: true, started: true, person: person || null, all, force, limit });
+      res.json({
+        ok: true,
+        started: true,
+        person: person || null,
+        all,
+        force,
+        limit,
+        workers: workers || undefined,
+        batchConcurrency: batchConcurrency || undefined,
+      });
       void (async () => {
         try {
           if (all || people?.length) {
@@ -284,6 +295,8 @@ export function registerLibraryRoutes(app: Express): void {
               force,
               limitPerPerson: limit || undefined,
               people,
+              workers: workers || undefined,
+              batchConcurrency: batchConcurrency || undefined,
               onProgress: (m) => console.log(m),
             });
           } else {
@@ -291,6 +304,7 @@ export function registerLibraryRoutes(app: Express): void {
               person,
               force,
               limit: limit || undefined,
+              batchConcurrency: batchConcurrency || undefined,
               onProgress: (m) => console.log(m),
             });
           }
