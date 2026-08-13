@@ -16,6 +16,7 @@ import {
   describeRoyalPerson,
   ROYAL_PEOPLE,
 } from "./describeRoyal.js";
+import { scanAllRoyalPeople, scanRoyalPerson } from "./scanRoyal.js";
 import {
   bulkDeleteRawClips,
   uploadTrustedClipsForPerson,
@@ -205,6 +206,33 @@ export function registerLibraryRoutes(app: Express): void {
           }
         }
         console.log("[library] bulk collect finished");
+      })();
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post("/api/media-library/scan-royal", async (req, res) => {
+    try {
+      if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
+      const person = String(req.body?.person || "").trim();
+      const all = Boolean(req.body?.all);
+      const dryRun = Boolean(req.body?.dryRun);
+      const people = Array.isArray(req.body?.people) ? req.body.people.map(String) : undefined;
+      if (!all && !person && !people?.length) {
+        return res.status(400).json({ error: "person required (or all:true)" });
+      }
+      res.json({ ok: true, started: true, person: person || null, all, dryRun });
+      void (async () => {
+        try {
+          if (all || people?.length) {
+            await scanAllRoyalPeople({ dryRun, people, onProgress: (m) => console.log(m) });
+          } else {
+            await scanRoyalPerson({ person, dryRun, onProgress: (m) => console.log(m) });
+          }
+        } catch (err) {
+          console.error("[library] scan-royal failed", err);
+        }
       })();
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
