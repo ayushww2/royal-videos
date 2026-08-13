@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "../components/AppShell";
 import { ErrorState, LoadingState } from "../components/Badges";
 import { api } from "../lib/api";
+import { ROYAL_MEDIA_NICHE_SLUG } from "../lib/royal";
 import { RoyalAssistantPanel } from "../components/RoyalAssistantPanel";
 
 type RootLibrary = {
@@ -78,6 +79,10 @@ const PEOPLE_ORDER = [
   "prince-harry",
   "meghan-markle",
   "princess-diana",
+  "frances-shand-kydd",
+  "lady-sarah-mccorquodale",
+  "lady-jane-fellowes",
+  "charles-spencer",
   "princess-anne",
   "sir-timothy-laurence",
   "prince-edward",
@@ -89,6 +94,18 @@ const PEOPLE_ORDER = [
   "zara-tindall",
   "laura-lopes",
   "tom-parker-bowles",
+];
+
+const ROYAL_CONTEXT_GROUP = "Royal Context Assets";
+
+const ROYAL_CONTEXT_ORDER = [
+  "ctx-documents-letters",
+  "ctx-royal-estates",
+  "ctx-study-archive",
+  "ctx-press-media",
+  "ctx-memory-emotional",
+  "ctx-travel-arrival",
+  "ctx-private-meetings",
 ];
 
 const PLACE_SLUGS = new Set([
@@ -152,8 +169,9 @@ function splitDescription(text: string): { visual: string; useFor: string | null
   return { visual: text.trim(), useFor: null };
 }
 
-function sectionForPerson(p: NichePerson): "People" | "Places" | "Context" {
+function sectionForPerson(p: NichePerson): "People" | "Royal Context Assets" | "Places" | "Context" {
   const g = String(p.group || "").toLowerCase();
+  if (g === "royal context assets" || p.personSlug.startsWith("ctx-")) return "Royal Context Assets";
   if (g === "places" || g === "place") return "Places";
   if (g === "context" || g === "b-roll" || g === "broll") return "Context";
   if (g === "people" || g === "person") return "People";
@@ -170,7 +188,12 @@ function sectionForPerson(p: NichePerson): "People" | "Places" | "Context" {
 }
 
 function groupPeople(people: NichePerson[]): Array<{ section: string; people: NichePerson[] }> {
-  const buckets: Record<string, NichePerson[]> = { People: [], Places: [], Context: [] };
+  const buckets: Record<string, NichePerson[]> = {
+    People: [],
+    "Royal Context Assets": [],
+    Places: [],
+    Context: [],
+  };
   for (const p of people) buckets[sectionForPerson(p)].push(p);
   for (const key of Object.keys(buckets)) {
     buckets[key].sort((a, b) => {
@@ -181,10 +204,17 @@ function groupPeople(people: NichePerson[]): Array<{ section: string; people: Ni
         const bo = bi >= 0 ? bi : 500;
         if (ao !== bo) return ao - bo;
       }
+      if (key === "Royal Context Assets") {
+        const ai = ROYAL_CONTEXT_ORDER.indexOf(a.personSlug);
+        const bi = ROYAL_CONTEXT_ORDER.indexOf(b.personSlug);
+        const ao = ai >= 0 ? ai : 500;
+        const bo = bi >= 0 ? bi : 500;
+        if (ao !== bo) return ao - bo;
+      }
       return a.person.localeCompare(b.person);
     });
   }
-  return ["People", "Places", "Context"]
+  return ["People", "Royal Context Assets", "Places", "Context"]
     .map((section) => ({ section, people: buckets[section] }))
     .filter((s) => s.people.length > 0);
 }
@@ -204,13 +234,6 @@ export function MediaLibraryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    api<RootLibrary>("/api/media-library")
-      .then(setRoot)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
-
   const openNiche = async (nicheSlug: string) => {
     setError("");
     setPerson(null);
@@ -226,6 +249,25 @@ export function MediaLibraryPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    api<RootLibrary>("/api/media-library")
+      .then((data) => {
+        setRoot(data);
+        const royal =
+          data.niches?.find((n) => n.nicheSlug === ROYAL_MEDIA_NICHE_SLUG) ||
+          data.niches?.find((n) => /royal/i.test(n.niche) || /royal/i.test(n.nicheSlug));
+        if (royal) {
+          return openNiche(royal.nicheSlug);
+        }
+        setError("Royal Family media niche not found.");
+        setLoading(false);
+      })
+      .catch((e) => {
+        setError(e.message);
+        setLoading(false);
+      });
+  }, []);
 
   const openPerson = async (
     nicheSlug: string,
@@ -296,26 +338,19 @@ export function MediaLibraryPage() {
 
   return (
     <AppShell
-      title="Media Library"
+      title="Royal Media"
       breadcrumbs={
-        person ? `Media / ${person.person}` : niche ? niche.niche : "R2 shared library"
+        person
+          ? `Royal Media / ${person.person}`
+          : niche
+            ? `Royal Media / ${niche.niche}`
+            : "Royal Media"
       }
       actions={
         <div className="btn-row">
           {person && (
             <button className="btn btn-secondary" type="button" onClick={() => setPerson(null)}>
               ← Back
-            </button>
-          )}
-          {niche && !person && (
-            <button
-              className="btn btn-secondary"
-              type="button"
-              onClick={() => {
-                setNiche(null);
-              }}
-            >
-              ← Niches
             </button>
           )}
         </div>
@@ -325,116 +360,46 @@ export function MediaLibraryPage() {
       {loading && <LoadingState />}
 
       {!loading && !niche && !person && (
-        <div className="card-grid">
-          {(root?.niches || []).map((n) => (
-            <button
-              key={n.nicheSlug}
-              type="button"
-              className="card card-pad"
-              style={{ textAlign: "left", cursor: "pointer" }}
-              onClick={() => openNiche(n.nicheSlug)}
-            >
-              <h3 className="card-title">{n.niche}</h3>
-              <p className="dim" style={{ marginTop: 8 }}>
-                {n.peopleCount} people · {n.images} images · {rawClipsCount(n)} raw clips
-              </p>
-            </button>
-          ))}
-          {!root?.niches?.length && (
-            <div className="state-box">No niches yet. Collect images to populate the library.</div>
-          )}
+        <div className="state-box">
+          {root?.niches?.length
+            ? "Royal Family media niche not found."
+            : "No royal media yet. Collect images to populate the library."}
         </div>
       )}
 
       {!loading && niche && !person && (
-        <div style={{ display: "grid", gap: 22 }}>
-          <div className="card card-pad">
-            <div className="section-head" style={{ marginBottom: 8 }}>
-              <h3 className="card-title" style={{ margin: 0 }}>
-                Raw clips
-              </h3>
-              <span className="dim">Upload person zip packs (merged raw + trusted library clips)</span>
-            </div>
-            <label
-              className="btn btn-primary btn-sm"
-              style={{ cursor: uploading ? "wait" : "pointer", width: "fit-content" }}
-            >
-              {uploading ? "Uploading…" : "Upload raw clip packs"}
-              <input
-                type="file"
-                accept=".zip"
-                multiple
-                hidden
-                disabled={uploading}
-                onChange={async (e) => {
-                  const files = Array.from(e.target.files || []);
-                  e.target.value = "";
-                  if (!files.length) return;
-                  setUploading(true);
-                  setNotice("");
-                  setError("");
-                  try {
-                    const body = new FormData();
-                    for (const f of files) body.append("files", f);
-                    const res = await fetch("/api/media-library/trusted/bulk", {
-                      method: "POST",
-                      body,
-                      credentials: "include",
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || "Upload failed");
-                    const lines = (data.results || []).map((r: any) =>
-                      r.error
-                        ? `${r.file}: ${r.error}`
-                        : `${r.person || r.file}: +${r.added || 0} raw clips`
-                    );
-                    setNotice(lines.join(" · "));
-                    if (niche) await openNiche(niche.nicheSlug);
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : String(err));
-                  } finally {
-                    setUploading(false);
-                  }
-                }}
-              />
-            </label>
-            {notice && (
-              <p className="help" style={{ marginTop: 10 }}>
-                {notice}
-              </p>
-            )}
-          </div>
+        <div className="royal-roster">
+          <header className="royal-roster-intro">
+            <p className="eyebrow">Royal Family library</p>
+            <h2>People &amp; context assets</h2>
+            <p className="lede">
+              Browse royal people stills and raw clips, plus reusable documentary context images (documents,
+              estates, press, travel, and more).
+            </p>
+          </header>
 
           {groupPeople(niche.people).map(({ section, people }) => (
-            <div key={section}>
-              <h3
-                style={{
-                  margin: "0 0 12px",
-                  fontSize: 18,
-                  fontFamily: "var(--font-display, Georgia, serif)",
-                  color: "var(--ivory, #faf7f7)",
-                  letterSpacing: "0.02em",
-                }}
-              >
-                {section}
-              </h3>
-              <div className="card-grid">
+            <section key={section} className="royal-roster-section">
+              <div className="royal-roster-section-head">
+                <h3>{section}</h3>
+                <span>{people.length}</span>
+              </div>
+              <div className="royal-roster-grid">
                 {people.map((p) => (
                   <button
                     key={p.personSlug}
                     type="button"
-                    className="card card-pad"
-                    style={{ textAlign: "left", cursor: "pointer" }}
+                    className="royal-person-tile"
                     onClick={() => openPerson(niche.nicheSlug, p.personSlug)}
                   >
-                    <h3 className="card-title">{p.person}</h3>
-                    <p className="dim" style={{ marginTop: 8 }}>
+                    <span className="royal-person-name">{p.person}</span>
+                    <span className="royal-person-meta">
                       {p.images} images · {rawClipsCount(p)} raw clips
-                    </p>
+                    </span>
                   </button>
                 ))}
               </div>
-            </div>
+            </section>
           ))}
         </div>
       )}
