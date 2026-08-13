@@ -106,6 +106,10 @@ export interface LibraryAsset {
   context?: RoyalContext;
   /** Primary folder person plus other clearly identifiable royals visible in frame */
   people?: string[];
+  /** When people[] was backfilled */
+  peopleBackfillAt?: string;
+  /** text or vision source for people[] backfill */
+  peopleBackfillSource?: "text" | "vision";
   /** When classification labels were written */
   classifiedAt?: string;
   /** Model id used for classifiedAt */

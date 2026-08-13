@@ -18,6 +18,7 @@ import {
 } from "./describeRoyal.js";
 import { classifyAllRoyalPeople, classifyRoyalPerson } from "./classifyRoyal.js";
 import { collectAllRoyalContextAssets, collectRoyalContextCategory } from "./collectRoyalContext.js";
+import { backfillAllRoyalPeople } from "./backfillRoyalPeople.js";
 import { ROYAL_CONTEXT_CATEGORIES } from "./royalContextQueries.js";
 import { scanAllRoyalPeople, scanRoyalPerson } from "./scanRoyal.js";
 import {
@@ -353,6 +354,40 @@ export function registerLibraryRoutes(app: Express): void {
           }
         } catch (err) {
           console.error("[library] collect-royal-context failed", err);
+        }
+      })();
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post("/api/media-library/backfill-royal-people", async (req, res) => {
+    try {
+      if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
+      const all = Boolean(req.body?.all);
+      const person = String(req.body?.person || "").trim();
+      const force = Boolean(req.body?.force);
+      const workers = Number(req.body?.workers || 0);
+      const people = Array.isArray(req.body?.people) ? req.body.people.map(String) : undefined;
+      if (!all && !person && !people?.length) {
+        return res.status(400).json({ error: "person required (or all:true or people:[])" });
+      }
+      res.json({ ok: true, started: true, all, person: person || null, force, workers: workers || 8 });
+      void (async () => {
+        try {
+          if (all || people?.length) {
+            await backfillAllRoyalPeople({
+              force,
+              people,
+              workers: workers || undefined,
+              onProgress: (m) => console.log(m),
+            });
+          } else {
+            const { backfillRoyalPeoplePerson } = await import("./backfillRoyalPeople.js");
+            await backfillRoyalPeoplePerson({ person, force, onProgress: (m) => console.log(m) });
+          }
+        } catch (err) {
+          console.error("[library] backfill-royal-people failed", err);
         }
       })();
     } catch (err) {
