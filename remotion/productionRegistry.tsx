@@ -5,6 +5,7 @@ import {
   selectedPresetRegistry,
   normalizeSelectedEventProps,
   validateSelectedEvent,
+  ClassicPurpleWhiteLowerThird,
   type SelectedPresetId as LegacySelectedPresetId,
   type SelectedTimelineEvent as LegacySelectedTimelineEvent,
 } from "./selected/SelectedVisualPack";
@@ -45,6 +46,11 @@ export const productionPresetRegistry: Record<
   // Earlier pack wins for upgraded shared designs + new quote/royal archive.
   ...earlierPresetRegistry,
   ...cleanPresetRegistry,
+  // Mystery finalize: text-fitting classic blue LT (selected pack outline style).
+  "01_classic_blue_white_lower_third":
+    selectedPresetRegistry["01_classic_blue_white_lower_third"],
+  // Purple LT uses the same spring/outline animation as classic blue.
+  "29_classic_purple_white_lower_third": ClassicPurpleWhiteLowerThird,
 };
 
 export const PRODUCTION_PRESET_ORDER = [
@@ -105,6 +111,8 @@ function normalizeProductionProps(
   if (presetId === "08_reveal_question") {
     if (!next.question && next.primaryText) next.question = next.primaryText;
     if (!next.primaryText && next.question) next.primaryText = next.question;
+    if (!next.backgroundImage && next.imageSrc) next.backgroundImage = next.imageSrc;
+    if (!next.imageSrc && next.backgroundImage) next.imageSrc = next.backgroundImage;
   }
   if (presetId === "15_quote_only" && !next.quote && next.text) {
     next.quote = next.text;
