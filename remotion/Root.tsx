@@ -52,6 +52,10 @@ import {
   EIGHT_MM_REEL_DURATION_FRAMES,
 } from './EightMmReelEffect';
 import {
+  FilmReelWhiteBgEffect,
+  FILM_REEL_WHITE_BG_FRAMES,
+} from './FilmReelWhiteBgEffect';
+import {
   BlurFillImageEffect,
   BLUR_FILL_DURATION_FRAMES,
 } from './BlurFillImageEffect';
@@ -63,6 +67,15 @@ import type {ProductionTimelineEvent} from './productionRegistry';
  */
 export const RemotionRoot: React.FC = () => (
   <>
+    <Composition
+      id="FilmReelWhiteBg"
+      component={FilmReelWhiteBgEffect}
+      durationInFrames={FILM_REEL_WHITE_BG_FRAMES}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{reelScale: 0.75}}
+    />
     <Composition
       id="EightMmReel"
       component={EightMmReelEffect}
