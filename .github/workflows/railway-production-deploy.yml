@@ -1,6 +1,5 @@
-# Deploy Dockerfile service to Railway when main updates (requires repo secrets).
-# Railway dashboard: Project → Service → Settings → copy Service ID.
-# Account token: https://railway.com/account/tokens → RAILWAY_TOKEN
+# Optional: auto-redeploy Railway when main changes.
+# Add GitHub repo secrets: RAILWAY_TOKEN, RAILWAY_SERVICE_ID
 name: Deploy production (Railway)
 
 on:
@@ -16,21 +15,24 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Trigger Railway redeploy
-        if: ${{ secrets.RAILWAY_TOKEN != '' && secrets.RAILWAY_SERVICE_ID != '' }}
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
           set -euo pipefail
+          if [ -z "${RAILWAY_TOKEN:-}" ] || [ -z "${RAILWAY_SERVICE_ID:-}" ]; then
+            echo "::warning::Missing RAILWAY_TOKEN or RAILWAY_SERVICE_ID — skip API redeploy."
+            echo "Redeploy manually: Railway → royal-videos-production → Deployments → Redeploy."
+            exit 0
+          fi
           query='mutation s($id:String!){serviceInstanceRedeploy(serviceId:$id)}'
-          payload=$(jq -nc --arg q "$query" --arg id "${{ secrets.RAILWAY_SERVICE_ID }}" \
+          payload=$(jq -nc --arg q "$query" --arg id "$RAILWAY_SERVICE_ID" \
             '{query:$q,variables:{id:$id}}')
           curl -sfS -X POST https://backboard.railway.app/graphql/v2 \
-            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$payload"
           echo "Railway redeploy requested."
-
-      - name: Secrets missing (skip)
-        if: ${{ secrets.RAILWAY_TOKEN == '' || secrets.RAILWAY_SERVICE_ID == '' }}
-        run: |
-          echo "::warning::Set GitHub secrets RAILWAY_TOKEN and RAILWAY_SERVICE_ID to enable auto-deploy."
-          echo "Or redeploy manually: Railway → royal-videos-production → Deploy → Redeploy."
