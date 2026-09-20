@@ -1,5 +1,6 @@
 # Optional: auto-redeploy Railway when main changes.
-# Add GitHub repo secrets: RAILWAY_TOKEN, RAILWAY_SERVICE_ID
+# Add GitHub repo secret: RAILWAY_TOKEN (account token from Railway → Account → Tokens).
+# Optional overrides: RAILWAY_SERVICE_ID, RAILWAY_ENVIRONMENT_ID (defaults: royal-videos web / production).
 name: Deploy production (Railway)
 
 on:
@@ -21,17 +22,19 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAYTOKEN }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
         run: |
           set -euo pipefail
-          SERVICE_ID="${RAILWAY_SERVICE_ID:-c89f9435-b75d-4733-8b68-c7e40368687a}"
+          SERVICE_ID="${RAILWAY_SERVICE_ID:-8b47387b-9a3e-48de-af46-c9d08bb2bfec}"
+          ENVIRONMENT_ID="${RAILWAY_ENVIRONMENT_ID:-def15ce7-b17b-4998-9008-be2d138799cf}"
           if [ -z "${RAILWAY_TOKEN:-}" ]; then
             echo "::warning::Missing GitHub secret RAILWAY_TOKEN (or RAILWAYTOKEN) — skip API redeploy."
-            echo "Redeploy manually: Railway → royal-videos-production → Deployments → Redeploy."
+            echo "Redeploy manually: Railway → royal-videos → web → production → Redeploy."
             exit 0
           fi
-          query='mutation s($id:String!){serviceInstanceRedeploy(serviceId:$id)}'
-          payload=$(jq -nc --arg q "$query" --arg id "$RAILWAY_SERVICE_ID" \
-            '{query:$q,variables:{id:$id}}')
+          query='mutation s($sid:String!,$eid:String!){serviceInstanceRedeploy(serviceId:$sid,environmentId:$eid)}'
+          payload=$(jq -nc --arg q "$query" --arg sid "$SERVICE_ID" --arg eid "$ENVIRONMENT_ID" \
+            '{query:$q,variables:{sid:$sid,eid:$eid}}')
           curl -sfS -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
