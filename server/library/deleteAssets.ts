@@ -115,7 +115,6 @@ export async function deletePersonLibraryAssets(
 
   const idSet = new Set(assetIds.map((id) => String(id).trim()).filter(Boolean));
   if (!idSet.size) return { deleted: 0, notFound: 0, errors: [] };
-  if (idSet.size > 200) throw new Error("Too many assets in one request (max 200)");
 
   const toRemove = idx.assets.filter((a) => idSet.has(a.assetId));
   const notFound = idSet.size - toRemove.length;
