@@ -15,6 +15,7 @@
     "typecheck:remotion": "tsc -p remotion/tsconfig.json --noEmit",
     "test:royal-v2": "tsx scripts/royal-v2-bulk-smoke.ts",
     "test:royal-v2:long": "tsx scripts/royal-v2-bulk-smoke.ts --long",
+    "library:prune-royal-portraits": "tsx scripts/prune-royal-sole-portraits.ts",
     "runpod:ingest-worker": "tsx scripts/runpod-ingest-worker.ts",
     "runpod:worker": "tsx scripts/runpod-render-worker.ts",
     "runpod:serverless:deploy": "tsx scripts/deploy-runpod-serverless.ts",
