@@ -19,12 +19,13 @@ jobs:
 
       - name: Trigger Railway redeploy
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAYTOKEN }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
           set -euo pipefail
-          if [ -z "${RAILWAY_TOKEN:-}" ] || [ -z "${RAILWAY_SERVICE_ID:-}" ]; then
-            echo "::warning::Missing RAILWAY_TOKEN or RAILWAY_SERVICE_ID — skip API redeploy."
+          SERVICE_ID="${RAILWAY_SERVICE_ID:-c89f9435-b75d-4733-8b68-c7e40368687a}"
+          if [ -z "${RAILWAY_TOKEN:-}" ]; then
+            echo "::warning::Missing GitHub secret RAILWAY_TOKEN (or RAILWAYTOKEN) — skip API redeploy."
             echo "Redeploy manually: Railway → royal-videos-production → Deployments → Redeploy."
             exit 0
           fi
