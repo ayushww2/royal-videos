@@ -198,6 +198,8 @@ export function MediaLibraryPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRawIds, setSelectedRawIds] = useState<string[]>([]);
   const [selectingRaw, setSelectingRaw] = useState(false);
+  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
+  const [selectingImages, setSelectingImages] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState("");
@@ -216,6 +218,8 @@ export function MediaLibraryPage() {
     setPerson(null);
     setSelectedRawIds([]);
     setSelectingRaw(false);
+    setSelectedImageIds([]);
+    setSelectingImages(false);
     setLoading(true);
     try {
       const data = await api<NicheLibrary>(`/api/media-library/${nicheSlug}`);
@@ -241,6 +245,7 @@ export function MediaLibraryPage() {
       setPerson(data);
       setSelectedId(data.assets[0]?.assetId || null);
       setSelectedRawIds([]);
+      setSelectedImageIds([]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -259,11 +264,63 @@ export function MediaLibraryPage() {
   }, [person]);
 
   const rawAssets = useMemo(() => (person?.assets || []).filter(isRawClip), [person]);
+  const imageAssets = useMemo(
+    () => (person?.assets || []).filter((a) => a.mediaType === "image"),
+    [person]
+  );
 
   const toggleRawSelected = (assetId: string) => {
     setSelectedRawIds((prev) =>
       prev.includes(assetId) ? prev.filter((id) => id !== assetId) : [...prev, assetId]
     );
+  };
+
+  const toggleImageSelected = (assetId: string) => {
+    setSelectedImageIds((prev) =>
+      prev.includes(assetId) ? prev.filter((id) => id !== assetId) : [...prev, assetId]
+    );
+  };
+
+  const deleteSelectedImages = async () => {
+    if (!person || !selectedImageIds.length) return;
+    const n = selectedImageIds.length;
+    if (
+      !window.confirm(
+        `Permanently delete ${n} image${n === 1 ? "" : "s"} from ${person.person}? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    setError("");
+    setNotice("");
+    try {
+      const res = await fetch(
+        `/api/media-library/${person.nicheSlug}/${person.personSlug}/delete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ assetIds: selectedImageIds }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Delete failed");
+      setNotice(`Deleted ${data.deleted ?? n} image(s)`);
+      setSelectingImages(false);
+      setSelectedImageIds([]);
+      await openPerson(person.nicheSlug, person.personSlug, mediaType, category);
+      if (niche) {
+        const nicheFresh = await api<NicheLibrary>(`/api/media-library/${person.nicheSlug}`);
+        setNiche(nicheFresh);
+      }
+      const rootFresh = await api<RootLibrary>("/api/media-library");
+      setRoot(rootFresh);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const deleteSelectedRaw = async () => {
@@ -476,11 +533,64 @@ export function MediaLibraryPage() {
               </span>
               <button
                 type="button"
+                className={`btn btn-sm ${selectingImages ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => {
+                  const next = !selectingImages;
+                  setSelectingImages(next);
+                  if (next) {
+                    setSelectingRaw(false);
+                    setSelectedRawIds([]);
+                  } else {
+                    setSelectedImageIds([]);
+                  }
+                  if (next && mediaType !== "image") {
+                    setMediaType("image");
+                    openPerson(person.nicheSlug, person.personSlug, "image", category);
+                  }
+                }}
+              >
+                {selectingImages ? "Selecting images…" : "Select images"}
+              </button>
+              {selectingImages && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={!imageAssets.length}
+                    onClick={() => setSelectedImageIds(imageAssets.map((a) => a.assetId))}
+                  >
+                    Select all shown ({imageAssets.length})
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={!selectedImageIds.length}
+                    onClick={() => setSelectedImageIds([])}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    disabled={!selectedImageIds.length || deleting}
+                    onClick={() => void deleteSelectedImages()}
+                  >
+                    {deleting ? "Deleting…" : `Delete selected (${selectedImageIds.length})`}
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
                 className={`btn btn-sm ${selectingRaw ? "btn-primary" : "btn-secondary"}`}
                 onClick={() => {
                   const next = !selectingRaw;
                   setSelectingRaw(next);
-                  if (!next) setSelectedRawIds([]);
+                  if (next) {
+                    setSelectingImages(false);
+                    setSelectedImageIds([]);
+                  } else {
+                    setSelectedRawIds([]);
+                  }
                   if (next && mediaType !== "raw_clips") {
                     setMediaType("raw_clips");
                     openPerson(person.nicheSlug, person.personSlug, "raw_clips", category);
@@ -572,17 +682,21 @@ export function MediaLibraryPage() {
             <div className="library-grid">
               {person.assets.map((a) => {
                 const thumb = previewUrl(a);
-                const checked = selectedRawIds.includes(a.assetId);
-                const selectable = selectingRaw && isRawClip(a);
+                const rawChecked = selectedRawIds.includes(a.assetId);
+                const imageChecked = selectedImageIds.includes(a.assetId);
+                const selectableRaw = selectingRaw && isRawClip(a);
+                const selectableImage = selectingImages && a.mediaType === "image";
+                const checked = rawChecked || imageChecked;
                 return (
                   <button
                     key={a.assetId}
                     type="button"
-                    className={`library-card ${selectedId === a.assetId ? "active" : ""} ${
+                    className={`library-card ${selectedId === a.assetId && !selectableRaw && !selectableImage ? "active" : ""} ${
                       checked ? "checked" : ""
                     }`}
                     onClick={() => {
-                      if (selectable) toggleRawSelected(a.assetId);
+                      if (selectableRaw) toggleRawSelected(a.assetId);
+                      else if (selectableImage) toggleImageSelected(a.assetId);
                       else setSelectedId(a.assetId);
                     }}
                   >
@@ -607,7 +721,7 @@ export function MediaLibraryPage() {
                         <span className="dim">No preview</span>
                       )}
                       {isRawClip(a) && <span className="raw-badge">RAW</span>}
-                      {selectable && (
+                      {(selectableRaw || selectableImage) && (
                         <span className={`raw-check ${checked ? "on" : ""}`}>
                           {checked ? "✓" : ""}
                         </span>
