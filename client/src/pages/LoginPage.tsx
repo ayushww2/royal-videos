@@ -46,7 +46,7 @@ export function LoginPage() {
       await api<{ ok: boolean }>("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
       markLoggedIn();
       navigate("/", { replace: true });
@@ -66,6 +66,10 @@ export function LoginPage() {
           <div>
             <h1>Royal Videos</h1>
             <p>Sign in to the royal production console</p>
+            <p className="help" style={{ marginTop: 8 }}>
+              Manager account: <strong>adrian</strong> (same password as the main app login unless your admin set{" "}
+              <code>ADRIAN_PASSWORD</code>).
+            </p>
           </div>
         </div>
         <div className="field">
