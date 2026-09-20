@@ -660,13 +660,40 @@ table.data tr:hover td { background: rgba(255,255,255,0.02); }
   gap: 12px;
 }
 .library-card {
+  position: relative;
   border: 1px solid var(--border);
   border-radius: 14px;
   overflow: hidden;
   background: #0d1524;
   cursor: pointer;
+  text-align: left;
 }
 .library-card.active { border-color: rgba(56,189,248,0.5); }
+.library-card.library-card-checked {
+  border-color: rgba(248, 113, 113, 0.65);
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.35);
+}
+.library-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  background: rgba(0, 0, 0, 0.55);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  pointer-events: auto;
+}
+.library-check.on {
+  border-color: #f87171;
+  background: rgba(248, 113, 113, 0.92);
+}
 .library-thumb {
   aspect-ratio: 16/9;
   background: #05080f;

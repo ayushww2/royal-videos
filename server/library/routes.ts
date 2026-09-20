@@ -7,6 +7,7 @@ import {
   loadPersonLibrary,
   loadRootLibrary,
 } from "./collectImages.js";
+import { deletePersonLibraryAssets } from "./deleteAssets.js";
 
 function contentTypeForKey(key: string, provided?: string): string {
   const lower = key.toLowerCase();
@@ -118,6 +119,24 @@ export function registerLibraryRoutes(app: Express): void {
       const niche = await loadNicheLibrary(req.params.nicheSlug);
       if (!niche) return res.status(404).json({ error: "Niche not found" });
       res.json(niche);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post("/api/media-library/:nicheSlug/:personSlug/delete", async (req, res) => {
+    try {
+      if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
+      const assetIds = req.body?.assetIds;
+      if (!Array.isArray(assetIds) || assetIds.length === 0) {
+        return res.status(400).json({ error: "assetIds array required" });
+      }
+      const result = await deletePersonLibraryAssets(
+        req.params.nicheSlug,
+        req.params.personSlug,
+        assetIds.map(String)
+      );
+      res.json({ ok: true, ...result });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }

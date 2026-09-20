@@ -86,6 +86,9 @@ export function MediaLibraryPage() {
   const [mediaType, setMediaType] = useState<"all" | "image" | "raw_footage">("image");
   const [category, setCategory] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set());
+  const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -118,10 +121,74 @@ export function MediaLibraryPage() {
       const data = await api<PersonLibrary>(`/api/media-library/${nicheSlug}/${personSlug}?${q}`);
       setPerson(data);
       setSelectedId(data.assets[0]?.assetId || null);
+      setCheckedIds(new Set());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleChecked = (assetId: string) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(assetId)) next.delete(assetId);
+      else next.add(assetId);
+      return next;
+    });
+  };
+
+  const selectAllShown = () => {
+    if (!person) return;
+    setCheckedIds(new Set(person.assets.map((a) => a.assetId)));
+    setSelectMode(true);
+  };
+
+  const clearChecked = () => setCheckedIds(new Set());
+
+  const deleteSelected = async () => {
+    if (!person || checkedIds.size === 0) return;
+    const n = checkedIds.size;
+    const label =
+      mediaType === "image"
+        ? `${n} image${n === 1 ? "" : "s"}`
+        : `${n} asset${n === 1 ? "" : "s"}`;
+    if (
+      !window.confirm(
+        `Permanently delete ${label} from ${person.person}? This removes files from R2 and cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    setError("");
+    try {
+      const result = await api<{
+        ok: boolean;
+        deleted: number;
+        notFound: number;
+        errors: string[];
+      }>(`/api/media-library/${person.nicheSlug}/${person.personSlug}/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assetIds: [...checkedIds] }),
+      });
+      if (result.errors?.length) {
+        setError(`Deleted ${result.deleted}, with ${result.errors.length} storage warning(s).`);
+      }
+      setCheckedIds(new Set());
+      setSelectMode(false);
+      await openPerson(person.nicheSlug, person.personSlug, mediaType, category);
+      if (niche) {
+        const nicheFresh = await api<NicheLibrary>(`/api/media-library/${person.nicheSlug}`);
+        setNiche(nicheFresh);
+      }
+      const rootFresh = await api<RootLibrary>("/api/media-library");
+      setRoot(rootFresh);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -272,6 +339,42 @@ export function MediaLibraryPage() {
                 Showing {person.assets.length} · indexed {person.counts.images} images /{" "}
                 {person.counts.raw_footage} raw
               </span>
+              <span style={{ flex: 1 }} />
+              <button
+                type="button"
+                className={`btn ${selectMode ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => {
+                  setSelectMode((v) => {
+                    if (v) setCheckedIds(new Set());
+                    return !v;
+                  });
+                }}
+              >
+                {selectMode ? "Done selecting" : "Select multiple"}
+              </button>
+              {selectMode && (
+                <>
+                  <button type="button" className="btn btn-secondary" onClick={selectAllShown}>
+                    Select all shown
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={clearChecked}
+                    disabled={checkedIds.size === 0}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={() => void deleteSelected()}
+                    disabled={checkedIds.size === 0 || deleting}
+                  >
+                    {deleting ? "Deleting…" : `Delete selected (${checkedIds.size})`}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -279,13 +382,32 @@ export function MediaLibraryPage() {
             <div className="library-grid">
               {person.assets.map((a) => {
                 const thumb = previewUrl(a);
+                const checked = checkedIds.has(a.assetId);
                 return (
                   <button
                     key={a.assetId}
                     type="button"
-                    className={`library-card ${selectedId === a.assetId ? "active" : ""}`}
-                    onClick={() => setSelectedId(a.assetId)}
+                    className={`library-card ${selectedId === a.assetId && !selectMode ? "active" : ""} ${checked ? "library-card-checked" : ""}`}
+                    onClick={() => {
+                      if (selectMode) {
+                        toggleChecked(a.assetId);
+                        return;
+                      }
+                      setSelectedId(a.assetId);
+                    }}
                   >
+                    {selectMode && (
+                      <span
+                        className={`library-check ${checked ? "on" : ""}`}
+                        aria-hidden
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleChecked(a.assetId);
+                        }}
+                      >
+                        {checked ? "✓" : ""}
+                      </span>
+                    )}
                     <div className="library-thumb">
                       {thumb ? (
                         <img src={thumb} alt={clipLabel(a)} loading="lazy" />
