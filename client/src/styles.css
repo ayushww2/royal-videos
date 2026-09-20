@@ -383,6 +383,14 @@ button, input, textarea, select {
   font-size: 15px;
   font-weight: 600;
 }
+
+/* Media library roster cards are <button>s — force readable white titles */
+.card-grid button.card {
+  color: var(--text);
+}
+.card-grid .card-title {
+  color: #ffffff;
+}
 .stat-card .label {
   color: var(--text-muted);
   font-size: 12px;
