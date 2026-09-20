@@ -216,21 +216,6 @@ export const SoftGlassFocusSlideshow: React.FC<SlideshowProps> = ({
             filter="contrast(1.03) saturate(0.97)"
           />
         </div>
-
-        <div
-          style={{
-            position: "absolute",
-            top: -160,
-            left: -120 + (frame % 120) * 6,
-            width: 160,
-            height: "160%",
-            transform: "rotate(18deg)",
-            background:
-              "linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.22) 48%, transparent 100%)",
-            mixBlendMode: "screen",
-            opacity: 0.55,
-          }}
-        />
       </div>
 
       {s.current.caption ? (
