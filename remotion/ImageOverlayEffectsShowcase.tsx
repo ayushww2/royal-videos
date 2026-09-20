@@ -72,11 +72,10 @@ function img(i: number): string {
   return staticFile(PREVIEW_IMAGES[i % PREVIEW_IMAGES.length]);
 }
 
-function slidePack(primary: string, a: string, b: string) {
+/** One still for the full preview hold — no in-segment image cycling. */
+function singleSlideHold(primary: string) {
   return [
     {src: primary, kicker: "ARCHIVE", caption: "Primary visual hold", focus: {x: 0.5, y: 0.45}},
-    {src: a, kicker: "FRAME 02", caption: "Supporting still", focus: {x: 0.52, y: 0.48}},
-    {src: b, kicker: "FRAME 03", caption: "Context still", focus: {x: 0.48, y: 0.5}},
   ];
 }
 
@@ -88,9 +87,6 @@ function propsFor(
   const primary = img(imageIndex);
   const secondary = img(imageIndex + 3);
   const tertiary = img(imageIndex + 6);
-  const slides = slidePack(primary, secondary, tertiary);
-  const per = Math.max(20, Math.round(holdFrames / 3));
-
   switch (id) {
     case "01_classic_blue_white_lower_third":
       return {
@@ -161,10 +157,10 @@ function propsFor(
       };
     default:
       return {
-        slides,
-        durationPerSlide: per,
-        defaultSlideFrames: per,
-        transitionFrames: 14,
+        slides: singleSlideHold(primary),
+        durationPerSlide: holdFrames,
+        defaultSlideFrames: holdFrames,
+        transitionFrames: 0,
         durationFrames: holdFrames,
         showPresetLabel: false,
       };
@@ -233,7 +229,7 @@ export type ImageOverlayEffectsShowcaseProps = {
   holdSec?: number;
 };
 
-export const IMAGE_OVERLAY_HOLD_DEFAULT = 3.5;
+export const IMAGE_OVERLAY_HOLD_DEFAULT = 4;
 
 export const ImageOverlayEffectsShowcase: React.FC<ImageOverlayEffectsShowcaseProps> = ({
   holdSec = IMAGE_OVERLAY_HOLD_DEFAULT,

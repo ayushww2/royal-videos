@@ -88,9 +88,9 @@ export const RemotionRoot: React.FC = () => (
       fps={30}
       width={1920}
       height={1080}
-      defaultProps={{holdSec: 3.5} satisfies ImageOverlayEffectsShowcaseProps}
+      defaultProps={{holdSec: 4} satisfies ImageOverlayEffectsShowcaseProps}
       calculateMetadata={({props}: {props: ImageOverlayEffectsShowcaseProps}) => {
-        const holdSec = props.holdSec ?? 3.5;
+        const holdSec = props.holdSec ?? 4;
         return {
           durationInFrames: Math.round(holdSec * IMAGE_DISPLAY_EFFECT_COUNT * 30),
         };

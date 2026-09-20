@@ -136,10 +136,10 @@ function demoPropsFor(presetId: string, holdFrames: number): Record<string, unkn
       };
     default:
       return {
-        slides: demoSlides,
-        durationPerSlide: Math.round(holdFrames / 3),
-        defaultSlideFrames: Math.round(holdFrames / 3),
-        transitionFrames: 18,
+        slides: [demoSlides[0]],
+        durationPerSlide: holdFrames,
+        defaultSlideFrames: holdFrames,
+        transitionFrames: 0,
         durationFrames: holdFrames,
         showPresetLabel: false,
       };
