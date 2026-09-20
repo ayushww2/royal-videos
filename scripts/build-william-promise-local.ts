@@ -150,6 +150,7 @@ type Asset = {
   categories?: string[];
   category?: string;
   personSlug?: string;
+  shot?: string;
   width?: number;
   height?: number;
 };
@@ -257,6 +258,7 @@ function tokensLoose(a: string, b: string): boolean {
 function scoreAsset(a: Asset, visual: string, preferVideo: boolean): number {
   let s = 0;
   const desc = `${a.title || ""} ${a.description || ""} ${(a.categories || []).join(" ")} ${a.category || ""}`.toLowerCase();
+  const shot = String(a.shot || "").toLowerCase();
   const isVideo = a.mediaType === "trusted_clip" || a.mediaType === "raw_footage";
   if (preferVideo && isVideo) s += 40;
   if (!preferVideo && a.mediaType === "image") s += 40;
@@ -264,26 +266,58 @@ function scoreAsset(a: Asset, visual: string, preferVideo: boolean): number {
   if (preferVideo && a.mediaType === "raw_footage") s += 35;
   if (preferVideo && a.mediaType === "trusted_clip") s += 8;
   if (!preferVideo && a.mediaType === "trusted_clip") s += 5;
+
+  // FULL visuals — prefer wide / full_body / medium; reject half-face close-ups
+  if (shot === "wide" || shot === "full_body") s += 55;
+  else if (shot === "medium") s += 28;
+  else if (shot === "close_up" || shot === "closeup" || shot === "extreme_close_up") s -= 80;
+  if ((a.categories || []).includes("portrait") || a.category === "portrait") s -= 45;
+  if (/close[- ]?up|headshot|tight crop|half.?face|face only|profile portrait/.test(desc)) s -= 50;
+  if (/full[- ]?body|wide shot|establishing|walking|standing|procession|balcony|outdoors|ceremony/.test(desc)) s += 20;
+  // Prefer people-together / event frames over isolated face crops
+  if ((a.categories || []).includes("together") || /together|beside|with /.test(desc)) s += 18;
+  if ((a.categories || []).includes("event") || (a.categories || []).includes("formal")) s += 10;
+
   if ((a.categories || []).includes("iconic-ok")) s += 10;
   if ((a.categories || []).includes("image-clean-ok")) s += 8;
   if ((a.categories || []).includes("quality-excellent")) s += 12;
-  if (a.width && a.height && a.width >= 1000) s += 5;
+  if (a.width && a.height && a.width >= 1200) s += 8;
+  // Prefer landscape-ish frames (more of the scene)
+  if (a.width && a.height && a.width / a.height >= 1.2) s += 12;
+  if (a.width && a.height && a.width / a.height < 0.85) s -= 15; // tall crop / face-y
+
   if (visual === "Young Prince William") {
     if (/young prince william/.test(desc)) s += 80;
-    if (/young|childhood|teen|boyhood|199[0-7]|schoolboy/.test(desc)) s += 40;
+    if (/young|childhood|teen|boyhood|199[0-7]|schoolboy|ski/.test(desc)) s += 40;
     if (/greeting children|with (his |their )?children|with catherine and/.test(desc)) s -= 35;
-    if (/wedding|202[0-9]|coronation|bald|beard|king charles/.test(desc)) s -= 25;
+    if (/wedding|202[0-9]|coronation|bald|beard/.test(desc)) s -= 25;
   }
   if (visual.includes("ceremony") || visual.includes("honours") || visual.includes("medal")) {
     if (/ceremony|formal|abbey|chapel|order|medal|court|coronation|procession/.test(desc)) s += 25;
+    if (shot === "wide" || shot === "full_body") s += 20;
   }
   if (visual === "Buckingham Palace") {
     if (/buckingham|palace exterior|facade/.test(desc)) s += 30;
+    if (shot === "wide") s += 25;
   }
   if (visual === "Title Card") {
-    if (/serious|portrait|formal/.test(desc)) s += 10;
+    if (/formal|group|together|family/.test(desc)) s += 20;
+    if (shot === "wide" || shot === "full_body") s += 25;
   }
   return s;
+}
+
+/** Hard-filter: drop close-up / portrait when any fuller shot exists in the pool. */
+function preferFullFrame(pool: Asset[]): Asset[] {
+  const fuller = pool.filter((a) => {
+    const shot = String(a.shot || "").toLowerCase();
+    if (shot === "close_up" || shot === "closeup" || shot === "extreme_close_up") return false;
+    if ((a.categories || []).includes("portrait") && shot !== "wide" && shot !== "full_body" && shot !== "medium") {
+      return false;
+    }
+    return true;
+  });
+  return fuller.length ? fuller : pool;
 }
 
 /** Subjects that have raw_footage in the royal library. */
@@ -396,26 +430,29 @@ function pickAssets(timed: Array<LineVisual & { start: number; end: number }>) {
     const preferVideo = videoSlots.has(i);
     const pool = getAll(visual).filter((a) => a.r2Key && !used.has(a.assetId || a.r2Key));
 
-    let candidates = pool
-      .filter((a) => {
+    let mediaPool = preferFullFrame(
+      pool.filter((a) => {
         if (!preferVideo) return a.mediaType === "image";
-        // Prefer raw_footage first for clip slots
         return a.mediaType === "raw_footage";
       })
+    );
+
+    let candidates = mediaPool
       .map((a) => ({ a, score: scoreAsset(a, visual, preferVideo) }))
       .sort((x, y) => y.score - x.score);
 
     // Clip slot fallback: trusted_clip if no raw available for this subject
     if (preferVideo && !candidates.length) {
-      candidates = pool
-        .filter((a) => a.mediaType === "trusted_clip" || a.mediaType === "raw_footage")
+      candidates = preferFullFrame(
+        pool.filter((a) => a.mediaType === "trusted_clip" || a.mediaType === "raw_footage")
+      )
         .map((a) => ({ a, score: scoreAsset(a, visual, true) }))
         .sort((x, y) => y.score - x.score);
     }
 
     let chosen = candidates[0]?.a;
     if (!chosen) {
-      const fallback = pool
+      const fallback = preferFullFrame(pool)
         .map((a) => ({ a, score: scoreAsset(a, visual, !preferVideo) }))
         .sort((x, y) => y.score - x.score);
       chosen = fallback[0]?.a;
@@ -631,8 +668,10 @@ async function main() {
       line: t.line,
       media: picks[i].kind,
       mediaType: picks[i].mediaType || picks[i].kind,
+      shot: picks[i].asset?.shot || null,
       assetId: picks[i].asset?.assetId || null,
       r2Key: picks[i].asset?.r2Key || null,
+      title: picks[i].asset?.title || null,
     })),
   };
 
