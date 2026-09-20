@@ -68,9 +68,9 @@ function demoPropsFor(presetId: ProductionPresetId): Record<string, unknown> {
       };
     case "29_classic_purple_white_lower_third":
       return {
-        primaryText: "QUEEN ELIZABETH II",
-        secondaryText: "CORONATION ARCHIVE",
-        locationTag: "LONDON",
+        primaryText: "HIDDEN ROYAL SECRET",
+        durationFrames: 120,
+        position: "bottom_left",
         showPresetLabel: false,
       };
     case "15_quote_only":

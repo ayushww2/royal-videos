@@ -8,6 +8,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
+import {QuestionBelowImage} from "../QuestionBelowImage";
 
 export type FocusPoint = {
   x: number;
@@ -46,6 +47,8 @@ export type RedGridArchiveProps = {
   subtitle?: string;
   durationFrames?: number;
   showPresetLabel?: boolean;
+  /** Share of the 1920x1080 frame the main image fills (0.75 = 75%). */
+  coverage?: number;
 };
 
 export type QuoteOnlyProps = {
@@ -59,13 +62,17 @@ export type QuoteOnlyProps = {
 };
 
 export type RevealQuestionProps = {
-  question: string;
+  question?: string;
+  primaryText?: string;
   secondaryText?: string;
   subtext?: string;
   backgroundImage?: string;
+  imageSrc?: string;
   durationFrames?: number;
   accentColor?: string;
   showPresetLabel?: boolean;
+  imageOnly?: boolean;
+  soundVolume?: number;
 };
 
 export type EarlierPresetId =
@@ -95,13 +102,15 @@ const phase = (
   frame: number,
   from: number,
   to: number
-) =>
-  clamp01(
+) => {
+  if (!(to > from)) return frame >= to ? 1 : 0;
+  return clamp01(
     interpolate(frame, [from, to], [0, 1], {
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
     })
   );
+};
 
 const focusOf = (
   slide: SlideItem
@@ -187,12 +196,13 @@ const useSlideState = (
     );
 
   const transitionProgress =
-    phase(
-      localFrame,
-      stride -
-        transitionFrames,
-      stride
-    );
+    safeSlides.length <= 1 || transitionFrames <= 0
+      ? 0
+      : phase(
+          localFrame,
+          stride - transitionFrames,
+          stride
+        );
 
   return {
     frame,
@@ -372,22 +382,6 @@ export const ClassicBlueWhiteLowerThird: React.FC<
             {secondaryText}
           </div>
         ) : null}
-
-        <div
-          style={{
-            position:
-              "absolute",
-            left: 575,
-            top: 82,
-            width: 68,
-            height: 66,
-            borderLeft:
-              "6px solid white",
-            borderBottom:
-              "6px solid white",
-            opacity: 0.92,
-          }}
-        />
 
         {tagText ? (
           <div
@@ -956,189 +950,57 @@ export const RevealQuestion: React.FC<
   RevealQuestionProps
 > = ({
   question,
-  secondaryText,
-  subtext,
+  primaryText,
   backgroundImage,
+  imageSrc,
   durationFrames = 105,
-  accentColor = "#F04C56",
-  showPresetLabel = false,
-}) => {
-  const frame =
-    useCurrentFrame();
-
-  const {fps} =
-    useVideoConfig();
-
-  const intro =
-    clamp01(
-      spring({
-        frame,
-        fps,
-        durationInFrames: 26,
-        config: {
-          damping: 12,
-          stiffness: 145,
-          mass: 0.8,
-        },
-      })
-    );
-
-  const outro =
-    interpolate(
-      frame,
-      [
-        Math.max(
-          0,
-          durationFrames - 14
-        ),
-        durationFrames,
-      ],
-      [1, 0],
-      {
-        extrapolateLeft:
-          "clamp",
-        extrapolateRight:
-          "clamp",
-      }
-    );
-
-  const supporting =
-    subtext ??
-    secondaryText;
-
-  return (
-    <AbsoluteFill
-      style={{
-        backgroundColor:
-          "black",
-        overflow: "hidden",
-      }}
-    >
-      {backgroundImage ? (
-        <Img
-          src={
-            backgroundImage
-          }
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            transform:
-              "scale(1.06)",
-            filter:
-              "brightness(0.28) contrast(1.05) saturate(0.82)",
-          }}
-        />
-      ) : null}
-
-      <AbsoluteFill
-        style={{
-          background:
-            "radial-gradient(circle at center, rgba(16,20,28,0.12), rgba(0,0,0,0.76))",
-        }}
-      />
-
-      <AbsoluteFill
-        style={{
-          justifyContent:
-            "center",
-          alignItems:
-            "center",
-          opacity:
-            intro * outro,
-        }}
-      >
-        <div
-          style={{
-            width: "84%",
-            textAlign:
-              "center",
-            transform:
-              `scale(${1.28 - intro * 0.28})`,
-          }}
-        >
-          <div
-            style={{
-              color: "white",
-              fontFamily:
-                "Arial Narrow, Oswald, Impact, Inter, sans-serif",
-              fontWeight: 950,
-              fontSize:
-                question.length >
-                38
-                  ? 56
-                  : 72,
-              letterSpacing: 2.6,
-              lineHeight: 1,
-              textTransform:
-                "uppercase",
-              textShadow:
-                "0 6px 24px rgba(0,0,0,0.78)",
-            }}
-          >
-            {question}
-          </div>
-
-          <div
-            style={{
-              width:
-                300 * intro,
-              height: 6,
-              backgroundColor:
-                accentColor,
-              margin:
-                "28px auto 0",
-              boxShadow:
-                `0 0 20px ${accentColor}`,
-            }}
-          />
-
-          {supporting ? (
-            <div
-              style={{
-                marginTop: 24,
-                color:
-                  "rgba(255,255,255,0.84)",
-                fontFamily:
-                  "Inter, Arial, sans-serif",
-                fontWeight: 750,
-                fontSize: 24,
-                letterSpacing: 1.8,
-                textTransform:
-                  "uppercase",
-              }}
-            >
-              {supporting}
-            </div>
-          ) : null}
-        </div>
-      </AbsoluteFill>
-
-      {showPresetLabel ? (
-        <PresetLabel
-          number="08"
-          name="Reveal Question"
-          accent={accentColor}
-        />
-      ) : null}
-
-      <Finish />
-    </AbsoluteFill>
-  );
-};
+  imageOnly = false,
+  soundVolume = 0.16,
+}) => (
+  <QuestionBelowImage
+    backgroundImage={backgroundImage}
+    imageSrc={imageSrc}
+    question={question || primaryText}
+    durationFrames={durationFrames}
+    soundVolume={imageOnly ? 0 : soundVolume}
+    imageOnly={imageOnly}
+    showCursor={!imageOnly}
+  />
+);
 
 export const RedGridArchiveBackground: React.FC<
   RedGridArchiveProps
 > = ({
   mainImage,
   sideImages = [],
-  title = "FIELD INVESTIGATION",
-  subtitle = "Archive and evidence montage",
+  title = "",
+  subtitle = "",
   durationFrames = 150,
   showPresetLabel = false,
+  coverage = 0.75,
 }) => {
   const frame =
     useCurrentFrame();
+
+  const cover =
+    Math.max(
+      0.4,
+      Math.min(0.95, coverage)
+    );
+
+  const mainWidth =
+    Math.round(1920 * cover);
+
+  const mainHeight =
+    Math.round(1080 * cover);
+
+  const hasCaption =
+    Boolean(
+      String(title || "")
+        .trim() ||
+        String(subtitle || "")
+          .trim()
+    );
 
   const progress =
     clamp01(
@@ -1192,10 +1054,18 @@ export const RedGridArchiveBackground: React.FC<
                   "absolute",
                 [index === 0
                   ? "left"
-                  : "right"]: 80,
-                top: 140,
-                width: 280,
-                height: 600,
+                  : "right"]: 28,
+                top: 190,
+                width: Math.max(
+                  120,
+                  Math.round(
+                    (1920 -
+                      mainWidth) /
+                      2 -
+                      56
+                  )
+                ),
+                height: 560,
                 overflow:
                   "hidden",
                 opacity: 0.30,
@@ -1219,11 +1089,13 @@ export const RedGridArchiveBackground: React.FC<
           position:
             "absolute",
           left: "50%",
-          top: "47%",
-          width: 780,
-          height: 520,
+          top: hasCaption
+            ? "47%"
+            : "50%",
+          width: mainWidth,
+          height: mainHeight,
           transform:
-            `translate(-50%, -50%) scale(${0.82 + progress * 0.025})`,
+            `translate(-50%, -50%) scale(${0.995 + progress * 0.02})`,
           overflow: "hidden",
           backgroundColor:
             "black",
@@ -1238,47 +1110,49 @@ export const RedGridArchiveBackground: React.FC<
         />
       </div>
 
-      <div
-        style={{
-          position:
-            "absolute",
-          left: "50%",
-          bottom: 55,
-          transform:
-            "translateX(-50%)",
-          textAlign:
-            "center",
-          color: "white",
-        }}
-      >
+      {hasCaption ? (
         <div
           style={{
-            fontFamily:
-              "Arial Narrow, Oswald, Impact, sans-serif",
-            fontWeight: 950,
-            fontSize: 42,
-            letterSpacing: 2,
-            textTransform:
-              "uppercase",
+            position:
+              "absolute",
+            left: "50%",
+            bottom: 55,
+            transform:
+              "translateX(-50%)",
+            textAlign:
+              "center",
+            color: "white",
           }}
         >
-          {title}
-        </div>
+          <div
+            style={{
+              fontFamily:
+                "Arial Narrow, Oswald, Impact, sans-serif",
+              fontWeight: 950,
+              fontSize: 42,
+              letterSpacing: 2,
+              textTransform:
+                "uppercase",
+            }}
+          >
+            {title}
+          </div>
 
-        <div
-          style={{
-            marginTop: 7,
-            fontFamily:
-              "Inter, Arial, sans-serif",
-            fontWeight: 650,
-            fontSize: 18,
-            color:
-              "rgba(255,255,255,0.68)",
-          }}
-        >
-          {subtitle}
+          <div
+            style={{
+              marginTop: 7,
+              fontFamily:
+                "Inter, Arial, sans-serif",
+              fontWeight: 650,
+              fontSize: 18,
+              color:
+                "rgba(255,255,255,0.68)",
+            }}
+          >
+            {subtitle}
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {showPresetLabel ? (
         <PresetLabel

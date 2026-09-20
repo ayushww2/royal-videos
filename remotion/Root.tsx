@@ -39,6 +39,30 @@ import {
   type CinematicIntroProps,
   INTRO_DURATION_SEC,
 } from './CinematicIntro';
+import {
+  MysteryV3FinalPreview,
+  MYSTERY_V3_FINAL_PREVIEW_DURATION_SEC,
+} from './MysteryV3FinalPreview';
+import {
+  PurpleLowerThirdPreview,
+  PURPLE_LOWER_THIRD_PREVIEW_FRAMES,
+} from './PurpleLowerThirdPreview';
+import {
+  EightMmReelEffect,
+  EIGHT_MM_REEL_DURATION_FRAMES,
+} from './EightMmReelEffect';
+import {
+  FilmReelWhiteBgEffect,
+  FILM_REEL_WHITE_BG_FRAMES,
+} from './FilmReelWhiteBgEffect';
+import {
+  RealisticFilmReelEffect,
+  REALISTIC_FILM_REEL_FRAMES,
+} from './RealisticFilmReelEffect';
+import {
+  BlurFillImageEffect,
+  BLUR_FILL_DURATION_FRAMES,
+} from './BlurFillImageEffect';
 import type {ProductionTimelineEvent} from './productionRegistry';
 
 /**
@@ -47,6 +71,55 @@ import type {ProductionTimelineEvent} from './productionRegistry';
  */
 export const RemotionRoot: React.FC = () => (
   <>
+    <Composition
+      id="RealisticFilmReel"
+      component={RealisticFilmReelEffect}
+      durationInFrames={REALISTIC_FILM_REEL_FRAMES}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="FilmReelWhiteBg"
+      component={FilmReelWhiteBgEffect}
+      durationInFrames={FILM_REEL_WHITE_BG_FRAMES}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{reelScale: 0.75}}
+    />
+    <Composition
+      id="EightMmReel"
+      component={EightMmReelEffect}
+      durationInFrames={EIGHT_MM_REEL_DURATION_FRAMES}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="BlurFillImage"
+      component={BlurFillImageEffect}
+      durationInFrames={BLUR_FILL_DURATION_FRAMES}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="PurpleLowerThirdPreview"
+      component={PurpleLowerThirdPreview}
+      durationInFrames={PURPLE_LOWER_THIRD_PREVIEW_FRAMES}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="MysteryV3FinalPreview"
+      component={MysteryV3FinalPreview}
+      durationInFrames={Math.round(MYSTERY_V3_FINAL_PREVIEW_DURATION_SEC * 30)}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
     <Composition
       id="AWSelectedVisualPackPreview"
       component={SelectedPackPreview}

@@ -2,12 +2,25 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 
 const COOKIE_NAME = "dvf_session";
-const USERNAME = process.env.APP_USERNAME?.trim() || "ayush";
 const PASSWORD = process.env.APP_PASSWORD?.trim() || "awmedia123";
 const AUTH_SECRET = process.env.AUTH_SECRET?.trim() || "documentary-video-factory-auth";
 
-function sessionToken(): string {
-  return createHmac("sha256", AUTH_SECRET).update(`${USERNAME}:${PASSWORD}`).digest("hex");
+/** Comma-separated APP_USERNAME, or defaults ayush + adrian (same password). */
+function parseUsernames(): string[] {
+  const raw = process.env.APP_USERNAME?.trim();
+  if (raw) {
+    return raw
+      .split(",")
+      .map((u) => u.trim())
+      .filter(Boolean);
+  }
+  return ["ayush", "adrian"];
+}
+
+const USERNAMES = parseUsernames();
+
+function sessionTokenFor(username: string): string {
+  return createHmac("sha256", AUTH_SECRET).update(`${username}:${PASSWORD}`).digest("hex");
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -28,21 +41,29 @@ export function parseCookie(req: Request, name: string): string | undefined {
   return undefined;
 }
 
-export function isAuthenticated(req: Request): boolean {
+export function getSessionUsername(req: Request): string | null {
   const token = parseCookie(req, COOKIE_NAME);
-  if (!token) return false;
-  return safeEqual(token, sessionToken());
+  if (!token) return null;
+  for (const username of USERNAMES) {
+    if (safeEqual(token, sessionTokenFor(username))) return username;
+  }
+  return null;
+}
+
+export function isAuthenticated(req: Request): boolean {
+  return getSessionUsername(req) !== null;
 }
 
 export function validateCredentials(username: string, password: string): boolean {
-  return safeEqual(username, USERNAME) && safeEqual(password, PASSWORD);
+  if (!safeEqual(password, PASSWORD)) return false;
+  return USERNAMES.some((u) => safeEqual(username, u));
 }
 
-export function setSessionCookie(res: Response): void {
+export function setSessionCookie(res: Response, username: string): void {
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
   res.setHeader(
     "Set-Cookie",
-    `${COOKIE_NAME}=${encodeURIComponent(sessionToken())}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secure}`
+    `${COOKIE_NAME}=${encodeURIComponent(sessionTokenFor(username))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secure}`
   );
 }
 

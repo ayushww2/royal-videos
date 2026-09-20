@@ -115,17 +115,35 @@ const getSlideState = (
   frame: number
 ) => {
   const safeSlides = slides.length ? slides : [{ src: "" }];
-  const stride = Math.max(1, durationPerSlide - transitionFrames);
+  // Single-slide hold: no slide swap, no progressive zoom — avoids double-transition with base Ken Burns.
+  if (safeSlides.length <= 1) {
+    return {
+      index: 0,
+      nextIndex: 0,
+      localFrame: frame,
+      current: safeSlides[0],
+      next: safeSlides[0],
+      slideProgress: 0,
+      transitionProgress: 0,
+      holdStill: true as const,
+    };
+  }
+  const tf = Math.max(1, Math.floor(transitionFrames) || 1);
+  const stride = Math.max(tf + 1, durationPerSlide - tf);
   const index = Math.floor(frame / stride) % safeSlides.length;
   const nextIndex = (index + 1) % safeSlides.length;
   const localFrame = frame % stride;
   const slideProgress = clamp01(localFrame / stride);
-  const transitionProgress = clamp01(
-    interpolate(localFrame, [stride - transitionFrames, stride], [0, 1], {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    })
-  );
+  const transitionStart = stride - tf;
+  const transitionProgress =
+    tf <= 0 || transitionStart >= stride
+      ? 0
+      : clamp01(
+          interpolate(localFrame, [transitionStart, stride], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          })
+        );
 
   return {
     index,
@@ -135,6 +153,7 @@ const getSlideState = (
     next: safeSlides[nextIndex],
     slideProgress,
     transitionProgress,
+    holdStill: false as const,
   };
 };
 
