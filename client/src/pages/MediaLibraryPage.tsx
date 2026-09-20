@@ -499,7 +499,11 @@ export function MediaLibraryPage() {
       {!loading && person && (
         <>
           <div className="card card-pad" style={{ marginBottom: 14 }}>
-            <div className="btn-row" style={{ flexWrap: "wrap", gap: 8 }}>
+            <p className="help" style={{ margin: "0 0 12px", lineHeight: 1.45 }}>
+              <strong>Bulk delete stills:</strong> click <strong>Select images</strong>, tick photos,
+              then <strong>Delete selected</strong>. (Raw clips use <strong>Select raw clips</strong>.)
+            </p>
+            <div className="btn-row" style={{ flexWrap: "wrap", gap: 8, alignItems: "center" }}>
               <select
                 value={mediaType}
                 onChange={(e) => {
@@ -549,7 +553,7 @@ export function MediaLibraryPage() {
                   }
                 }}
               >
-                {selectingImages ? "Selecting images…" : "Select images"}
+                {selectingImages ? "Done selecting images" : "Select images"}
               </button>
               {selectingImages && (
                 <>
