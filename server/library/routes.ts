@@ -8,6 +8,7 @@ import {
   loadRootLibrary,
 } from "./collectImages.js";
 import { deletePersonLibraryAssets } from "./deleteAssets.js";
+import { getRoyalPruneJob, startRoyalPruneJob } from "./pruneSolePortraits.js";
 
 function contentTypeForKey(key: string, provided?: string): string {
   const lower = key.toLowerCase();
@@ -82,6 +83,30 @@ export function registerLibraryRoutes(app: Express): void {
       res.send(obj.body);
     } catch (err) {
       res.status(404).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post("/api/media-library/prune-sole-portraits", async (req, res) => {
+    try {
+      if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
+      const execute = Boolean(req.body?.execute);
+      const minImages = Math.max(1, Number(req.body?.minImages ?? 400));
+      const personSlug = req.body?.personSlug ? String(req.body.personSlug).trim() : undefined;
+      const limit = req.body?.limit ? Number(req.body.limit) : undefined;
+      const job = startRoyalPruneJob({ execute, minImages, personSlug, limit });
+      res.json({ ok: true, jobId: job.jobId, status: job.status, totalPeople: job.totalPeople });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.get("/api/media-library/prune-sole-portraits/:jobId", async (req, res) => {
+    try {
+      const job = await getRoyalPruneJob(req.params.jobId);
+      if (!job) return res.status(404).json({ error: "Job not found" });
+      res.json(job);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
 
