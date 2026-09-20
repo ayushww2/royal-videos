@@ -260,8 +260,10 @@ function scoreAsset(a: Asset, visual: string, preferVideo: boolean): number {
   const isVideo = a.mediaType === "trusted_clip" || a.mediaType === "raw_footage";
   if (preferVideo && isVideo) s += 40;
   if (!preferVideo && a.mediaType === "image") s += 40;
-  if (a.mediaType === "trusted_clip") s += 15;
-  if (a.mediaType === "raw_footage") s += 5;
+  // Prefer raw footage for clip slots (user: 30% raw clips)
+  if (preferVideo && a.mediaType === "raw_footage") s += 35;
+  if (preferVideo && a.mediaType === "trusted_clip") s += 8;
+  if (!preferVideo && a.mediaType === "trusted_clip") s += 5;
   if ((a.categories || []).includes("iconic-ok")) s += 10;
   if ((a.categories || []).includes("image-clean-ok")) s += 8;
   if ((a.categories || []).includes("quality-excellent")) s += 12;
@@ -284,6 +286,83 @@ function scoreAsset(a: Asset, visual: string, preferVideo: boolean): number {
   return s;
 }
 
+/** Subjects that have raw_footage in the royal library. */
+const CLIP_FRIENDLY = new Set([
+  "Prince William",
+  "Queen Camilla",
+  "King Charles",
+  "Princess Diana",
+  "Princess Catherine",
+  "Young Prince William",
+]);
+
+/**
+ * Place ~30% raw clips, with ≥2 clip visuals in every 20s window.
+ * Window rule wins when it needs more slots than the 30% budget.
+ */
+function chooseVideoSlots(
+  timed: Array<LineVisual & { start: number; end: number }>
+): Set<number> {
+  const totalDur = timed.length ? timed[timed.length - 1].end : 0;
+  const eligible = timed
+    .map((t, i) => ({
+      i,
+      mid: (t.start + t.end) / 2,
+      dur: t.end - t.start,
+      visual: t.visual,
+      score: t.end - t.start + (CLIP_FRIENDLY.has(t.visual) ? 5 : 0),
+    }))
+    .filter((x) => x.visual !== "Title Card" && CLIP_FRIENDLY.has(x.visual));
+
+  const videoSlots = new Set<number>();
+  const WINDOW = 20;
+  const PER_WINDOW = 2;
+  const windows = Math.max(1, Math.ceil(totalDur / WINDOW));
+
+  for (let w = 0; w < windows; w++) {
+    const wStart = w * WINDOW;
+    const wEnd = Math.min(totalDur + 0.001, (w + 1) * WINDOW);
+    const inWin = eligible
+      .filter((x) => x.mid >= wStart && x.mid < wEnd && !videoSlots.has(x.i))
+      .sort((a, b) => b.score - a.score);
+    // Spread picks across the window (first + last among top candidates) when possible
+    const picks: typeof inWin = [];
+    if (inWin.length <= PER_WINDOW) {
+      picks.push(...inWin);
+    } else {
+      // take highest score, then the farthest mid from it, etc.
+      const remaining = [...inWin];
+      while (picks.length < PER_WINDOW && remaining.length) {
+        if (picks.length === 0) {
+          picks.push(remaining.shift()!);
+          continue;
+        }
+        const anchor = picks[0].mid;
+        remaining.sort(
+          (a, b) => Math.abs(b.mid - anchor) - Math.abs(a.mid - anchor) || b.score - a.score
+        );
+        picks.push(remaining.shift()!);
+        remaining.sort((a, b) => b.score - a.score);
+      }
+    }
+    for (const p of picks.slice(0, PER_WINDOW)) videoSlots.add(p.i);
+  }
+
+  // Also honor ~30% overall: if windows under-filled total vs 30%, add more globally
+  const nonTitle = timed.filter((t) => t.visual !== "Title Card").length;
+  const pctTarget = Math.max(videoSlots.size, Math.round(nonTitle * 0.3));
+  if (videoSlots.size < pctTarget) {
+    const extra = eligible
+      .filter((x) => !videoSlots.has(x.i))
+      .sort((a, b) => b.score - a.score);
+    for (const e of extra) {
+      if (videoSlots.size >= pctTarget) break;
+      videoSlots.add(e.i);
+    }
+  }
+  return videoSlots;
+}
+
 function pickAssets(timed: Array<LineVisual & { start: number; end: number }>) {
   const used = new Set<string>();
   const catalogCache = new Map<string, Asset[]>();
@@ -297,29 +376,7 @@ function pickAssets(timed: Array<LineVisual & { start: number; end: number }>) {
     return out;
   };
 
-  // Target ~30% video among non-title scenes
-  const n = timed.filter((t) => t.visual !== "Title Card").length;
-  const videoTarget = Math.max(1, Math.round(n * 0.3));
-  const videoSlots = new Set<number>();
-  // Prefer longer holds + person subjects that have clip libraries
-  const clipFriendly = new Set([
-    "Prince William",
-    "Queen Camilla",
-    "King Charles",
-    "Princess Diana",
-    "Princess Catherine",
-    "Young Prince William",
-  ]);
-  const idxs = timed
-    .map((t, i) => ({
-      i,
-      dur: t.end - t.start,
-      visual: t.visual,
-      score: (t.end - t.start) + (clipFriendly.has(t.visual) ? 10 : 0),
-    }))
-    .filter((x) => x.visual !== "Title Card" && clipFriendly.has(x.visual))
-    .sort((a, b) => b.score - a.score);
-  for (let k = 0; k < videoTarget && k < idxs.length; k++) videoSlots.add(idxs[k].i);
+  const videoSlots = chooseVideoSlots(timed);
 
   const picks: Array<{
     lineIndex: number;
@@ -327,6 +384,7 @@ function pickAssets(timed: Array<LineVisual & { start: number; end: number }>) {
     asset: Asset | null;
     preferVideo: boolean;
     kind: "image" | "video" | "title";
+    mediaType?: string;
   }> = [];
 
   for (let i = 0; i < timed.length; i++) {
@@ -336,42 +394,52 @@ function pickAssets(timed: Array<LineVisual & { start: number; end: number }>) {
       continue;
     }
     const preferVideo = videoSlots.has(i);
-    const candidates = getAll(visual)
-      .filter((a) => a.r2Key && !used.has(a.assetId || a.r2Key))
+    const pool = getAll(visual).filter((a) => a.r2Key && !used.has(a.assetId || a.r2Key));
+
+    let candidates = pool
       .filter((a) => {
-        if (preferVideo) return a.mediaType === "trusted_clip" || a.mediaType === "raw_footage";
-        return a.mediaType === "image";
+        if (!preferVideo) return a.mediaType === "image";
+        // Prefer raw_footage first for clip slots
+        return a.mediaType === "raw_footage";
       })
       .map((a) => ({ a, score: scoreAsset(a, visual, preferVideo) }))
       .sort((x, y) => y.score - x.score);
 
+    // Clip slot fallback: trusted_clip if no raw available for this subject
+    if (preferVideo && !candidates.length) {
+      candidates = pool
+        .filter((a) => a.mediaType === "trusted_clip" || a.mediaType === "raw_footage")
+        .map((a) => ({ a, score: scoreAsset(a, visual, true) }))
+        .sort((x, y) => y.score - x.score);
+    }
+
     let chosen = candidates[0]?.a;
     if (!chosen) {
-      // fallback opposite media type
-      const fallback = getAll(visual)
-        .filter((a) => a.r2Key && !used.has(a.assetId || a.r2Key))
+      const fallback = pool
         .map((a) => ({ a, score: scoreAsset(a, visual, !preferVideo) }))
         .sort((x, y) => y.score - x.score);
       chosen = fallback[0]?.a;
     }
     if (chosen) used.add(chosen.assetId || chosen.r2Key);
+    const isVid =
+      Boolean(chosen) &&
+      (chosen!.mediaType === "trusted_clip" || chosen!.mediaType === "raw_footage");
     picks.push({
       lineIndex: i,
       visual,
       asset: chosen || null,
       preferVideo,
-      kind: chosen && (chosen.mediaType === "trusted_clip" || chosen.mediaType === "raw_footage")
-        ? "video"
-        : "image",
+      kind: isVid ? "video" : "image",
+      mediaType: chosen?.mediaType,
     });
   }
   return picks;
 }
 
-async function downloadAsset(asset: Asset, destName: string): Promise<string> {
+async function downloadAsset(asset: Asset, destName: string, force = false): Promise<string> {
   fs.mkdirSync(PUBLIC_MEDIA, { recursive: true });
   const dest = path.join(PUBLIC_MEDIA, destName);
-  if (fs.existsSync(dest) && fs.statSync(dest).size > 1000) return dest;
+  if (!force && fs.existsSync(dest) && fs.statSync(dest).size > 1000) return dest;
   const url = `${BASE}/api/media-library/asset?key=${encodeURIComponent(asset.r2Key)}`;
   const res = await fetch(url, { headers: { Cookie: cookieHeader() } });
   if (!res.ok || !res.body) throw new Error(`download failed ${asset.r2Key}: ${res.status}`);
@@ -400,18 +468,20 @@ async function main() {
   const timed = alignLines(words, LINE_MAP, totalDur);
   const picks = pickAssets(timed);
 
-  // Download media
+  // Download media — HTTP URLs for Remotion (local static server on :8765)
+  const MEDIA_BASE = "http://127.0.0.1:8765";
+  const CACHE_BUST = `v=${Date.now()}`;
   const scenes: Array<Record<string, unknown>> = [];
   let imgCount = 0;
   let vidCount = 0;
+  let rawCount = 0;
+  let trustedCount = 0;
 
   for (let i = 0; i < timed.length; i++) {
     const t = timed[i];
     const p = picks[i];
     const sceneId = `line-${String(i + 1).padStart(2, "0")}`;
     if (p.kind === "title" || !p.asset) {
-      // dark title hold — use a formal still underneath with overlay via effect, or solid via tiny black png
-      // Prefer a unique formal group/ceremony still for atmosphere under title text effect
       const titleCandidates = loadCatalog("topic-extra-senior-royals-formal-group")
         .concat(loadCatalog("king-charles"))
         .filter((a) => a.mediaType === "image");
@@ -419,8 +489,8 @@ async function main() {
       let imageUrl: string | undefined;
       if (ta) {
         const name = `${sceneId}-title${extFor(ta)}`;
-        await downloadAsset(ta, name);
-        imageUrl = `/william-promise/media/${name}`;
+        await downloadAsset(ta, name, true);
+        imageUrl = `${MEDIA_BASE}/william-promise/media/${name}?${CACHE_BUST}`;
         imgCount++;
       }
       scenes.push({
@@ -439,15 +509,13 @@ async function main() {
     }
 
     const name = `${sceneId}-${p.kind}${extFor(p.asset)}`;
-    await downloadAsset(p.asset, name);
-    const publicRel = `william-promise/media/${name}`;
-    // Remotion staticFile path via serve — use absolute file URL for local render reliability
-    const abs = path.join(PUBLIC_MEDIA, name);
-    // Remotion static server serves remotion/public at URL root
-    const fileUrl = `/william-promise/media/${name}`;
+    await downloadAsset(p.asset, name, true);
+    const fileUrl = `${MEDIA_BASE}/william-promise/media/${name}?${CACHE_BUST}`;
 
     if (p.kind === "video") {
       vidCount++;
+      if (p.mediaType === "raw_footage") rawCount++;
+      if (p.mediaType === "trusted_clip") trustedCount++;
       scenes.push({
         sceneId,
         startTime: t.start,
@@ -460,6 +528,7 @@ async function main() {
         _line: t.line,
         _assetId: p.asset.assetId,
         _r2Key: p.asset.r2Key,
+        _mediaType: p.mediaType,
       });
     } else {
       imgCount++;
@@ -475,6 +544,7 @@ async function main() {
         _line: t.line,
         _assetId: p.asset.assetId,
         _r2Key: p.asset.r2Key,
+        _mediaType: p.mediaType,
       });
     }
   }
@@ -512,17 +582,32 @@ async function main() {
       : [];
 
   const props = {
-    scenes: scenes.map(({ _visual, _line, _assetId, _r2Key, _titleOverlay, ...rest }) => rest),
+    scenes: scenes.map(
+      ({ _visual, _line, _assetId, _r2Key, _titleOverlay, _mediaType, ...rest }) => rest
+    ),
     effectEvents,
     sfxEvents: [],
     musicEvents: [],
     glitchEvents,
     fps: FPS,
-    voiceoverUrl: "/william-promise/voiceover.mp3",
+    voiceoverUrl: `${MEDIA_BASE}/william-promise/voiceover.mp3?${CACHE_BUST}`,
     voiceoverVolume: 1,
     bodyStartOffsetSec: 0,
     cinematicIntro: { enabled: false },
   };
+
+  // Validate 2 clips per 20s window
+  const windows: Array<{ start: number; end: number; clips: number; indices: number[] }> = [];
+  for (let w = 0; w * 20 < totalDur; w++) {
+    const wStart = w * 20;
+    const wEnd = Math.min(totalDur, (w + 1) * 20);
+    const indices: number[] = [];
+    timed.forEach((t, i) => {
+      const mid = (t.start + t.end) / 2;
+      if (mid >= wStart && mid < wEnd && picks[i].kind === "video") indices.push(i + 1);
+    });
+    windows.push({ start: wStart, end: wEnd, clips: indices.length, indices });
+  }
 
   const meta = {
     jobId: JOB_ID,
@@ -532,8 +617,12 @@ async function main() {
     lineCount: timed.length,
     imageCount: imgCount,
     videoCount: vidCount,
+    rawFootageCount: rawCount,
+    trustedClipCount: trustedCount,
     imagePct: Math.round((imgCount / (imgCount + vidCount)) * 100),
     videoPct: Math.round((vidCount / (imgCount + vidCount)) * 100),
+    rawPctOfAll: Math.round((rawCount / (imgCount + vidCount)) * 100),
+    windows20s: windows,
     timed: timed.map((t, i) => ({
       i: i + 1,
       start: Number(t.start.toFixed(3)),
@@ -541,6 +630,7 @@ async function main() {
       visual: t.visual,
       line: t.line,
       media: picks[i].kind,
+      mediaType: picks[i].mediaType || picks[i].kind,
       assetId: picks[i].asset?.assetId || null,
       r2Key: picks[i].asset?.r2Key || null,
     })),
@@ -560,8 +650,12 @@ async function main() {
         lines: timed.length,
         images: imgCount,
         videos: vidCount,
+        rawFootage: rawCount,
+        trustedClips: trustedCount,
         imagePct: meta.imagePct,
         videoPct: meta.videoPct,
+        rawPctOfAll: meta.rawPctOfAll,
+        windows20s: windows,
         props: path.join(ROOT, "props.json"),
       },
       null,
