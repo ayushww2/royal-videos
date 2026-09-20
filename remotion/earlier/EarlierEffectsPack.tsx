@@ -689,28 +689,6 @@ export const GlassGallerySlideshow: React.FC<
             }
           />
         </div>
-
-        <div
-          style={{
-            position:
-              "absolute",
-            top: -170,
-            left:
-              -120 +
-              (state.frame %
-                130) *
-                6,
-            width: 160,
-            height: "170%",
-            transform:
-              "rotate(18deg)",
-            background:
-              "linear-gradient(180deg, transparent, rgba(255,255,255,0.20), transparent)",
-            mixBlendMode:
-              "screen",
-            opacity: 0.55,
-          }}
-        />
       </div>
 
       {state.current.caption ? (

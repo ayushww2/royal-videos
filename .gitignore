@@ -13,3 +13,6 @@ uploads/
 .tmp*/
 .tmp-*.cjs
 .tmp-*.js
+
+# Local royal preview media (large binaries)
+remotion/public/william-promise/

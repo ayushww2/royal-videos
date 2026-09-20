@@ -63,6 +63,16 @@ import {
   BlurFillImageEffect,
   BLUR_FILL_DURATION_FRAMES,
 } from './BlurFillImageEffect';
+import {
+  MasterEffectsShowcase,
+  MASTER_EFFECTS_SHOWCASE_FRAMES,
+} from './MasterEffectsShowcase';
+import {
+  ImageOverlayEffectsShowcase,
+  IMAGE_OVERLAY_SHOWCASE_FRAMES,
+  IMAGE_DISPLAY_EFFECT_COUNT,
+  type ImageOverlayEffectsShowcaseProps,
+} from './ImageOverlayEffectsShowcase';
 import type {ProductionTimelineEvent} from './productionRegistry';
 
 /**
@@ -71,6 +81,29 @@ import type {ProductionTimelineEvent} from './productionRegistry';
  */
 export const RemotionRoot: React.FC = () => (
   <>
+    <Composition
+      id="ImageOverlayEffectsShowcase"
+      component={ImageOverlayEffectsShowcase}
+      durationInFrames={IMAGE_OVERLAY_SHOWCASE_FRAMES}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{holdSec: 4} satisfies ImageOverlayEffectsShowcaseProps}
+      calculateMetadata={({props}: {props: ImageOverlayEffectsShowcaseProps}) => {
+        const holdSec = props.holdSec ?? 4;
+        return {
+          durationInFrames: Math.round(holdSec * IMAGE_DISPLAY_EFFECT_COUNT * 30),
+        };
+      }}
+    />
+    <Composition
+      id="MasterEffectsShowcase"
+      component={MasterEffectsShowcase}
+      durationInFrames={MASTER_EFFECTS_SHOWCASE_FRAMES}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
     <Composition
       id="RealisticFilmReel"
       component={RealisticFilmReelEffect}

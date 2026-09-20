@@ -5,16 +5,22 @@ const COOKIE_NAME = "dvf_session";
 const PASSWORD = process.env.APP_PASSWORD?.trim() || "awmedia123";
 const AUTH_SECRET = process.env.AUTH_SECRET?.trim() || "documentary-video-factory-auth";
 
-/** Comma-separated APP_USERNAME, or defaults ayush + adrian (same password). */
+/** Comma-separated APP_USERNAME, or defaults ayush + adrian (same APP_PASSWORD for all). */
 function parseUsernames(): string[] {
+  const defaults = ["ayush", "adrian"];
   const raw = process.env.APP_USERNAME?.trim();
-  if (raw) {
-    return raw
-      .split(",")
-      .map((u) => u.trim())
-      .filter(Boolean);
+  const fromEnv = raw
+    ? raw
+        .split(",")
+        .map((u) => u.trim().toLowerCase())
+        .filter(Boolean)
+    : defaults;
+  const users = fromEnv.length ? fromEnv : defaults;
+  // Production often sets APP_USERNAME=ayush only — adrian uses the same password.
+  if (users.includes("ayush") && !users.includes("adrian")) {
+    users.push("adrian");
   }
-  return ["ayush", "adrian"];
+  return [...new Set(users)];
 }
 
 const USERNAMES = parseUsernames();
@@ -56,14 +62,16 @@ export function isAuthenticated(req: Request): boolean {
 
 export function validateCredentials(username: string, password: string): boolean {
   if (!safeEqual(password, PASSWORD)) return false;
-  return USERNAMES.some((u) => safeEqual(username, u));
+  const user = username.trim().toLowerCase();
+  return USERNAMES.some((u) => safeEqual(user, u));
 }
 
 export function setSessionCookie(res: Response, username: string): void {
+  const canonical = username.trim().toLowerCase();
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
   res.setHeader(
     "Set-Cookie",
-    `${COOKIE_NAME}=${encodeURIComponent(sessionTokenFor(username))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secure}`
+    `${COOKIE_NAME}=${encodeURIComponent(sessionTokenFor(canonical))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secure}`
   );
 }
 

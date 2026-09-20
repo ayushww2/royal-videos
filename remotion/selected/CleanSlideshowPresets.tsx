@@ -446,21 +446,6 @@ const GlassGallery: React.FC<
             opacity: transitionProgress,
           }}
         />
-
-        {/* Clean moving glass sheen */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            bottom: 0,
-            left: `${-30 + ((frame * 1.1) % 170)}%`,
-            width: "18%",
-            transform: "skewX(-18deg)",
-            background:
-              "linear-gradient(90deg, transparent, rgba(255,255,255,0.16), transparent)",
-            pointerEvents: "none",
-          }}
-        />
       </div>
 
       {current.caption ? (
