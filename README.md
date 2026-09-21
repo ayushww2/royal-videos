@@ -12,8 +12,13 @@ Standalone Royal documentary video factory — extracted from `new-video-ai`.
 ## Deploy
 Railway service from this repo root (`Dockerfile` + `railway.toml`).
 
+**ContactBox (GPT):** `contactbox.env` in the repo sets `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL` (`gpt-5.6-sol`). Railway Variables override when present.
+
 ## Auth
-Set `APP_USERNAME` / `APP_PASSWORD` and the same R2 / OpenAI / ElevenLabs / RunPod env vars as production.
+- **Ayush (default):** `APP_USERNAME` / `APP_PASSWORD` (defaults `ayush` / `awmedia123`)
+- **Adrian (manager):** always enabled — username `adrian`, password `APP_PASSWORD` unless you set `ADRIAN_PASSWORD`
+- **Extra accounts:** `APP_LOGINS=user:password,user2:password2`
+- Disable Adrian: `ADRIAN_LOGIN=0`
 
 ## Cursor
 Open this repo in a **new** Cursor chat / Cloud Agent for all future royal work.
