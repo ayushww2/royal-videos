@@ -167,10 +167,23 @@ export function registerLibraryRoutes(app: Express): void {
     try {
       if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
       const execute = Boolean(req.body?.execute);
-      const minImages = Math.max(1, Number(req.body?.minImages ?? 400));
+      const minImages = Math.max(0, Number(req.body?.minImages ?? 400));
       const personSlug = req.body?.personSlug ? String(req.body.personSlug).trim() : undefined;
+      const personSlugs = Array.isArray(req.body?.personSlugs)
+        ? req.body.personSlugs.map((s: unknown) => String(s).trim().toLowerCase()).filter(Boolean)
+        : undefined;
       const limit = req.body?.limit ? Number(req.body.limit) : undefined;
-      const job = startRoyalPruneJob({ execute, minImages, personSlug, limit });
+      const maxSoloPortraits = req.body?.maxSoloPortraits
+        ? Math.max(1, Number(req.body.maxSoloPortraits))
+        : undefined;
+      const job = startRoyalPruneJob({
+        execute,
+        minImages,
+        personSlug,
+        personSlugs,
+        limit,
+        maxSoloPortraits,
+      });
       res.json({ ok: true, jobId: job.jobId, status: job.status, totalPeople: job.totalPeople });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
