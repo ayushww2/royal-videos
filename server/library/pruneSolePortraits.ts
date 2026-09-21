@@ -29,6 +29,7 @@ export const ROYAL_ICONIC_PRUNE_TEN = [
   "prince-andrew",
   "zara-tindall",
   "laura-lopes",
+  "sarah-ferguson",
 ] as const;
 
 export type RoyalPruneOptions = {
