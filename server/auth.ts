@@ -2,12 +2,57 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 
 const COOKIE_NAME = "dvf_session";
-const USERNAME = process.env.APP_USERNAME?.trim() || "ayush";
-const PASSWORD = process.env.APP_PASSWORD?.trim() || "awmedia123";
 const AUTH_SECRET = process.env.AUTH_SECRET?.trim() || "documentary-video-factory-auth";
 
-function sessionToken(): string {
-  return createHmac("sha256", AUTH_SECRET).update(`${USERNAME}:${PASSWORD}`).digest("hex");
+type AuthAccount = { username: string; password: string };
+
+function buildAuthAccounts(): AuthAccount[] {
+  const defaultPassword = process.env.APP_PASSWORD?.trim() || "awmedia123";
+  const byName = new Map<string, string>();
+
+  const rawUsers = process.env.APP_USERNAME?.trim();
+  if (rawUsers) {
+    for (const part of rawUsers.split(",")) {
+      const username = part.trim().toLowerCase();
+      if (username) byName.set(username, defaultPassword);
+    }
+  } else {
+    byName.set("ayush", defaultPassword);
+  }
+
+  // Manager login — always on unless explicitly disabled (even when APP_USERNAME is a single non-ayush user).
+  const adrianDisabled =
+    process.env.ADRIAN_LOGIN === "0" ||
+    process.env.ADRIAN_LOGIN === "false" ||
+    process.env.ADRIAN_LOGIN === "off";
+  if (!adrianDisabled) {
+    const adrianUser = (process.env.ADRIAN_USERNAME?.trim() || "adrian").toLowerCase();
+    const adrianPassword = process.env.ADRIAN_PASSWORD?.trim() || defaultPassword;
+    byName.set(adrianUser, adrianPassword);
+  }
+
+  if (!byName.has("ayush")) {
+    byName.set("ayush", defaultPassword);
+  }
+
+  const extra = process.env.APP_LOGINS?.trim();
+  if (extra) {
+    for (const entry of extra.split(",")) {
+      const colon = entry.indexOf(":");
+      if (colon <= 0) continue;
+      const username = entry.slice(0, colon).trim().toLowerCase();
+      const password = entry.slice(colon + 1);
+      if (username && password) byName.set(username, password);
+    }
+  }
+
+  return [...byName.entries()].map(([username, password]) => ({ username, password }));
+}
+
+const AUTH_ACCOUNTS = buildAuthAccounts();
+
+function sessionTokenFor(username: string, password: string): string {
+  return createHmac("sha256", AUTH_SECRET).update(`${username}:${password}`).digest("hex");
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -28,21 +73,36 @@ export function parseCookie(req: Request, name: string): string | undefined {
   return undefined;
 }
 
-export function isAuthenticated(req: Request): boolean {
+export function getSessionUsername(req: Request): string | null {
   const token = parseCookie(req, COOKIE_NAME);
-  if (!token) return false;
-  return safeEqual(token, sessionToken());
+  if (!token) return null;
+  for (const account of AUTH_ACCOUNTS) {
+    if (safeEqual(token, sessionTokenFor(account.username, account.password))) {
+      return account.username;
+    }
+  }
+  return null;
+}
+
+export function isAuthenticated(req: Request): boolean {
+  return getSessionUsername(req) !== null;
 }
 
 export function validateCredentials(username: string, password: string): boolean {
-  return safeEqual(username, USERNAME) && safeEqual(password, PASSWORD);
+  const user = username.trim().toLowerCase();
+  const account = AUTH_ACCOUNTS.find((a) => safeEqual(a.username, user));
+  if (!account) return false;
+  return safeEqual(password, account.password);
 }
 
-export function setSessionCookie(res: Response): void {
+export function setSessionCookie(res: Response, username: string): void {
+  const canonical = username.trim().toLowerCase();
+  const account = AUTH_ACCOUNTS.find((a) => safeEqual(a.username, canonical));
+  if (!account) return;
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
   res.setHeader(
     "Set-Cookie",
-    `${COOKIE_NAME}=${encodeURIComponent(sessionToken())}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secure}`
+    `${COOKIE_NAME}=${encodeURIComponent(sessionTokenFor(account.username, account.password))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secure}`
   );
 }
 

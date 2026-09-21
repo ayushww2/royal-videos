@@ -15,12 +15,28 @@ import type { LibraryAsset } from "./types.js";
 export const ROYAL_PRUNE_NICHE_SLUG = "royal-family";
 const BATCH = 6;
 const CONCURRENCY = 4;
-export const MAX_SOLO_PORTRAITS = 10;
+export const MAX_SOLO_PORTRAITS = 5;
+
+/** High-profile royals: cap solo headshots, keep iconic group/action shots only. */
+export const ROYAL_ICONIC_PRUNE_TEN = [
+  "prince-louis",
+  "prince-george",
+  "princess-charlotte",
+  "sir-timothy-laurence",
+  "princess-eugenie",
+  "prince-edward",
+  "sophie-duchess-of-edinburgh",
+  "prince-andrew",
+  "zara-tindall",
+  "laura-lopes",
+  "sarah-ferguson",
+] as const;
 
 export type RoyalPruneOptions = {
   execute: boolean;
   minImages: number;
   personSlug?: string;
+  personSlugs?: string[];
   limit?: number;
   maxSoloPortraits?: number;
 };
@@ -54,6 +70,7 @@ type StillJudge = {
   kind: StillKind;
   keep: boolean;
   portrait_quality?: number;
+  iconic_score?: number;
   reason?: string;
 };
 
@@ -139,22 +156,31 @@ async function judgeStillBatch(
     {
       type: "text",
       text: `British royal documentary STILL photo QA for person: ${person}.
+Viewers expect high-quality, varied footage — not repetitive solo headshots.
 
 Classify each image (in order):
 
 kind:
-- multi_person: another adult clearly visible with the named person (group, couple, family, officials). KEEP.
-- solo_action: ONLY the named person visible BUT doing a clear public action (waving to crowd, speech/podium, walkabout, arrival, ceremony role, military salute, formal investiture). KEEP.
-- solo_portrait: ONLY the named person, static portrait/headshot/standing alone with no clear action — repetitive solo spam. DELETE except best few.
-- wrong_person: main face is NOT ${person}. DELETE.
-- junk: heavy watermark, meme text, thumbnail graphic. DELETE.
+- multi_person: another adult clearly visible with the named person (group, couple, family, officials).
+- solo_action: ONLY the named person visible BUT clear public action (wave, speech, walkabout, arrival, ceremony, salute).
+- solo_portrait: ONLY the named person, static portrait/headshot/standing alone — repetitive solo spam.
+- wrong_person: main face is NOT ${person}.
+- junk: watermark, meme text, thumbnail graphic, unusable blur.
 
-For solo_portrait set portrait_quality 0-100 (documentary usefulness).
+Scores (0-100):
+- portrait_quality: for solo_portrait — iconic documentary usefulness (lighting, expression, framing).
+- iconic_score: for multi_person and solo_action — would this still look strong in a royal documentary? Penalize blurry, awkward, duplicate paparazzi, tiny face, bad crop.
+
+keep rules:
+- wrong_person, junk: keep=false.
+- solo_portrait: keep=true only for the best candidates (we cap to 5 in code); still score portrait_quality.
+- multi_person / solo_action: keep=true only if iconic_score >= 55 and genuinely usable; else keep=false.
+- Be strict on boring duplicate solo portraits — keep=false when kind=solo_portrait unless top-tier.
 
 Return JSON:
-{"results":[{"index":0,"kind":"solo_action","keep":true,"portrait_quality":0,"reason":"..."}]}
+{"results":[{"index":0,"kind":"multi_person","keep":true,"portrait_quality":0,"iconic_score":72,"reason":"..."}]}
 
-Conservative: if unsure solo_action vs solo_portrait, choose solo_action + keep:true.
+If unsure solo_action vs solo_portrait, prefer solo_action when there is clear action.
 Speech/wave/formal ceremony solo = solo_action NOT solo_portrait.`,
     },
   ];
@@ -198,14 +224,39 @@ Speech/wave/formal ceremony solo = solo_action NOT solo_portrait.`,
     if (!row) {
       return { index, kind: "solo_portrait" as const, keep: true, reason: "missing_row_keep" };
     }
+    const iconic =
+      typeof row.iconic_score === "number"
+        ? row.iconic_score
+        : typeof row.portrait_quality === "number"
+          ? row.portrait_quality
+          : 50;
     return {
       index,
       kind: (row.kind || "solo_portrait") as StillKind,
       keep: Boolean(row.keep),
-      portrait_quality: typeof row.portrait_quality === "number" ? row.portrait_quality : 50,
+      portrait_quality: typeof row.portrait_quality === "number" ? row.portrait_quality : iconic,
+      iconic_score: iconic,
       reason: String(row.reason || ""),
     };
   });
+}
+
+function filterPruneTargets(
+  people: Array<{ personSlug: string; images: number }>,
+  options: RoyalPruneOptions
+) {
+  if (options.personSlug) {
+    const row = people.filter((p) => p.personSlug === options.personSlug);
+    if (!row.length) throw new Error(`Person not found: ${options.personSlug}`);
+    return row;
+  }
+  if (options.personSlugs?.length) {
+    const want = new Set(options.personSlugs.map((s) => s.trim().toLowerCase()).filter(Boolean));
+    const row = people.filter((p) => want.has(p.personSlug));
+    if (!row.length) throw new Error(`No matching people for slugs: ${[...want].join(", ")}`);
+    return row;
+  }
+  return people.filter((p) => p.images >= options.minImages);
 }
 
 function decideDeletes(
@@ -239,8 +290,16 @@ function decideDeletes(
       if (!j.keep) deleteIds.add(asset.assetId);
       continue;
     }
-    if (j.kind === "multi_person" || j.kind === "solo_action") continue;
+    if (j.kind === "multi_person" || j.kind === "solo_action") {
+      if (!j.keep) deleteIds.add(asset.assetId);
+      continue;
+    }
     if (j.kind === "solo_portrait") {
+      if (!j.keep) {
+        stats.solo_portrait_dropped++;
+        deleteIds.add(asset.assetId);
+        continue;
+      }
       soloPortraits.push({ asset, quality: j.portrait_quality ?? 50 });
     }
   }
@@ -344,11 +403,7 @@ export async function runRoyalSolePortraitPrune(options: RoyalPruneOptions): Pro
   const niche = await loadNicheLibrary(ROYAL_PRUNE_NICHE_SLUG);
   if (!niche) throw new Error("Royal niche index missing");
 
-  let targets = niche.people.filter((p) => p.images >= options.minImages);
-  if (options.personSlug) {
-    targets = niche.people.filter((p) => p.personSlug === options.personSlug);
-    if (!targets.length) throw new Error(`Person not found: ${options.personSlug}`);
-  }
+  const targets = filterPruneTargets(niche.people, options);
 
   const summary: PersonPruneResult[] = [];
   for (const row of targets) {
@@ -382,10 +437,7 @@ export function startRoyalPruneJob(options: RoyalPruneOptions): RoyalPruneJobSta
       await persistJob(job);
       const niche = await loadNicheLibrary(ROYAL_PRUNE_NICHE_SLUG);
       if (!niche) throw new Error("Royal niche index missing");
-      let targets = niche.people.filter((p) => p.images >= options.minImages);
-      if (options.personSlug) {
-        targets = niche.people.filter((p) => p.personSlug === options.personSlug);
-      }
+      const targets = filterPruneTargets(niche.people, options);
       job.totalPeople = targets.length;
       await persistJob(job);
 
