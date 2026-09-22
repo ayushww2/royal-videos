@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { ErrorState, LoadingState, StatusBadge } from "../components/Badges";
 import { api, formatDate } from "../lib/api";
+import { isRoyalJobNiche } from "../lib/royal";
 import { JobRecord, friendlyStatus } from "../lib/types";
 
 export function SceneReviewHomePage() {
@@ -14,8 +15,17 @@ export function SceneReviewHomePage() {
     api<{ jobs: JobRecord[] }>("/api/jobs")
       .then((d) =>
         setJobs(
-          (d.jobs || []).filter((j) =>
-            ["ready_for_scene_review", "scene_review_ready", "approved", "completed", "render_queued", "rendering"].includes(j.status)
+          (d.jobs || []).filter(
+            (j) =>
+              isRoyalJobNiche(j.niche) &&
+              [
+                "ready_for_scene_review",
+                "scene_review_ready",
+                "approved",
+                "completed",
+                "render_queued",
+                "rendering",
+              ].includes(j.status)
           )
         )
       )
@@ -24,14 +34,14 @@ export function SceneReviewHomePage() {
   }, []);
 
   return (
-    <AppShell title="Scene Review" breadcrumbs="Documentary Video Factory / Scene Review">
+    <AppShell title="Scene Review" breadcrumbs="Royal Videos / Scene Review">
       {error && <ErrorState message={error} />}
       {loading ? (
         <LoadingState />
       ) : (
         <div className="card card-pad">
           <p className="help" style={{ marginTop: 0 }}>
-            Select a job that is ready for scene review.
+            Select a royal job that is ready for scene review.
           </p>
           <table className="data">
             <thead>
@@ -67,7 +77,7 @@ export function SceneReviewHomePage() {
               {!jobs.length && (
                 <tr>
                   <td colSpan={5} className="muted">
-                    No jobs ready for review yet.
+                    No royal jobs ready for review yet.
                   </td>
                 </tr>
               )}
