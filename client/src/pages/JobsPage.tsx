@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { ErrorState, LoadingState, StatusBadge } from "../components/Badges";
 import { api, formatDate } from "../lib/api";
+import { isRoyalJobNiche } from "../lib/royal";
 import { JobRecord, friendlyStatus } from "../lib/types";
 
 export function JobsPage() {
@@ -12,7 +13,7 @@ export function JobsPage() {
 
   async function load() {
     const data = await api<{ jobs: JobRecord[] }>("/api/jobs");
-    setJobs(data.jobs || []);
+    setJobs((data.jobs || []).filter((j) => isRoyalJobNiche(j.niche)));
   }
 
   useEffect(() => {
@@ -33,8 +34,8 @@ export function JobsPage() {
 
   return (
     <AppShell
-      title="Jobs"
-      breadcrumbs="Documentary Video Factory / Jobs"
+      title="Royal Jobs"
+      breadcrumbs="Royal Videos / Royal Jobs"
       actions={
         <Link className="btn btn-primary" to="/new">
           New Job
@@ -95,7 +96,7 @@ export function JobsPage() {
                 {!jobs.length && (
                   <tr>
                     <td colSpan={8} className="muted">
-                      No jobs yet.
+                      No royal jobs yet.
                     </td>
                   </tr>
                 )}
