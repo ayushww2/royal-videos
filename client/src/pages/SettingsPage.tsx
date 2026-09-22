@@ -14,7 +14,7 @@ export function SettingsPage() {
   }, []);
 
   return (
-    <AppShell title="Settings" breadcrumbs="Documentary Video Factory / Settings">
+    <AppShell title="Settings" breadcrumbs="Royal Videos / Settings">
       {error && <ErrorState message={error} />}
       {!health && !error && <LoadingState />}
       {health && (
