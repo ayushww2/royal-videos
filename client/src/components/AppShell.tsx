@@ -8,8 +8,8 @@ import { logout } from "../lib/auth";
 const NAV = [
   { to: "/", label: "Dashboard" },
   { to: "/new", label: "New Job" },
-  { to: "/jobs", label: "Jobs" },
-  { to: "/library", label: "Media Library" },
+  { to: "/jobs", label: "Royal Jobs" },
+  { to: "/library", label: "Royal Media" },
   { to: "/royal-v2/bulk", label: "Royal v2 Bulk" },
   { to: "/scene-review", label: "Scene Review" },
   { to: "/render-queue", label: "Render Queue" },
@@ -63,8 +63,8 @@ export function AppShell({
         <div className="brand">
           <div className="brand-mark" />
           <div>
-            <h1>Documentary Video Factory</h1>
-            <p>Visual intelligence studio</p>
+            <h1>Royal Videos</h1>
+            <p>Royal Family production</p>
           </div>
         </div>
         <nav className="nav">
