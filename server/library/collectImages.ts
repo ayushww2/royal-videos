@@ -33,6 +33,8 @@ const BAD_TITLE = [
   "vector",
   "cartoon",
   "ai generated",
+  "reddit",
+  "r/royalty",
 ];
 
 interface GoogleImageItem {
@@ -44,6 +46,40 @@ interface GoogleImageItem {
 
 function personSearchNames(person: string): string[] {
   const p = person.toLowerCase();
+  // Diana's Spencer family — must run before King Charles / Sarah Ferguson / Diana generics
+  if (p.includes("frances") || p.includes("shand") || (p.includes("kydd") && !p.includes("parker")))
+    return [
+      "Frances Shand Kydd",
+      "Frances Ruth Roche",
+      "Diana mother Frances Shand Kydd",
+      "Princess Diana mother Frances",
+    ];
+  if (p.includes("mccorquodale") || (p.includes("sarah") && p.includes("lady") && !p.includes("ferguson")))
+    return [
+      "Lady Sarah McCorquodale",
+      "Sarah McCorquodale",
+      "Diana sister Sarah Spencer",
+      "Lady Sarah Spencer McCorquodale",
+    ];
+  if (p.includes("fellowes") || (p.includes("jane") && p.includes("lady")))
+    return [
+      "Lady Jane Fellowes",
+      "Jane Fellowes",
+      "Diana sister Jane Spencer",
+      "Lady Jane Spencer Fellowes",
+    ];
+  if (
+    (p.includes("spencer") && (p.includes("charles") || p.includes("earl"))) ||
+    p === "charles spencer" ||
+    p.includes("earl spencer")
+  )
+    return [
+      "Charles Spencer",
+      "Earl Spencer",
+      "Charles Spencer 9th Earl Spencer",
+      "Diana brother Charles Spencer",
+    ];
+
   if (p.includes("harry")) return ["Prince Harry", "Harry Duke of Sussex", "Prince Harry Sussex"];
   if (p.includes("catherine") || p.includes("kate"))
     return ["Princess Catherine", "Catherine Princess of Wales", "Kate Middleton"];
@@ -51,7 +87,7 @@ function personSearchNames(person: string): string[] {
   if (p.includes("anne") && !p.includes("timothy")) return ["Princess Anne", "Anne Princess Royal", "Princess Royal Anne"];
   if (p.includes("william") && !p.includes("george")) return ["Prince William", "William Prince of Wales", "Duke of Cambridge William"];
   if (p.includes("meghan")) return ["Meghan Markle", "Meghan Duchess of Sussex", "Meghan Sussex"];
-  if (p.includes("charles") && !p.includes("parker") && !p.includes("charlotte"))
+  if (p.includes("charles") && !p.includes("parker") && !p.includes("charlotte") && !p.includes("spencer"))
     return ["King Charles III", "King Charles", "Charles III"];
   if (p.includes("george")) return ["Prince George", "Prince George of Wales", "George Cambridge"];
   if (p.includes("charlotte")) return ["Princess Charlotte", "Princess Charlotte of Wales", "Charlotte Cambridge"];
@@ -62,7 +98,8 @@ function personSearchNames(person: string): string[] {
   if (p.includes("zara")) return ["Zara Tindall", "Zara Phillips", "Zara Tindall royal"];
   if (p.includes("sophie")) return ["Sophie Duchess of Edinburgh", "Sophie Countess of Wessex", "Sophie Rhys-Jones"];
   if (p.includes("edward") && !p.includes("andrew")) return ["Prince Edward", "Edward Duke of Edinburgh", "Earl of Wessex Edward"];
-  if (p.includes("ferguson") || p.includes("sarah")) return ["Sarah Ferguson", "Sarah Duchess of York", "Fergie Duchess of York"];
+  if (p.includes("ferguson") || (p.includes("sarah") && !p.includes("mccorquodale")))
+    return ["Sarah Ferguson", "Sarah Duchess of York", "Fergie Duchess of York"];
   if (p.includes("diana")) return ["Princess Diana", "Diana Princess of Wales", "Lady Diana Spencer"];
   if (p.includes("timothy") || p.includes("laurence")) return ["Timothy Laurence", "Vice Admiral Timothy Laurence", "Sir Timothy Laurence"];
   if (p.includes("tom parker") || (p.includes("parker") && p.includes("bowles") && p.includes("tom")))
@@ -73,13 +110,27 @@ function personSearchNames(person: string): string[] {
 
 function personTitleHints(person: string): RegExp {
   const p = person.toLowerCase();
+  if (p.includes("frances") || p.includes("shand") || (p.includes("kydd") && !p.includes("parker")))
+    return /\b(frances|shand.?kydd|ruth roche|diana'?s? mother|mother of (princess )?diana)\b/i;
+  if (p.includes("mccorquodale") || (p.includes("sarah") && p.includes("lady") && !p.includes("ferguson")))
+    return /\b(mccorquodale|lady sarah|sarah spencer|diana'?s? (elder )?sister|spencer sister)\b/i;
+  if (p.includes("fellowes") || (p.includes("jane") && p.includes("lady")))
+    return /\b(fellowes|lady jane|jane spencer|diana'?s? (middle )?sister|spencer sister)\b/i;
+  if (
+    (p.includes("spencer") && (p.includes("charles") || p.includes("earl"))) ||
+    p === "charles spencer" ||
+    p.includes("earl spencer")
+  )
+    return /\b(charles spencer|earl spencer|viscount althorp|9th earl|althorp|diana'?s? brother|brother of (princess )?diana)\b/i;
+
   if (p.includes("harry")) return /\b(harry|sussex)\b/i;
   if (p.includes("catherine") || p.includes("kate")) return /\b(catherine|kate|middleton|wales)\b/i;
   if (p.includes("camilla")) return /\b(camilla|consort)\b/i;
   if (p.includes("anne") && !p.includes("timothy")) return /\b(anne|princess royal)\b/i;
   if (p.includes("william") && !p.includes("george")) return /\b(william|wales|cambridge)\b/i;
   if (p.includes("meghan")) return /\b(meghan|markle|sussex)\b/i;
-  if (p.includes("charles") && !p.includes("parker") && !p.includes("charlotte")) return /\b(charles|king charles)\b/i;
+  if (p.includes("charles") && !p.includes("parker") && !p.includes("charlotte") && !p.includes("spencer"))
+    return /\b(charles|king charles)\b/i;
   if (p.includes("george")) return /\b(george)\b/i;
   if (p.includes("charlotte")) return /\b(charlotte)\b/i;
   if (p.includes("louis")) return /\b(louis)\b/i;
@@ -88,8 +139,10 @@ function personTitleHints(person: string): RegExp {
   if (p.includes("beatrice")) return /\b(beatrice)\b/i;
   if (p.includes("zara")) return /\b(zara|tindall|phillips)\b/i;
   if (p.includes("sophie")) return /\b(sophie|edinburgh|wessex)\b/i;
-  if (p.includes("edward") && !p.includes("andrew")) return /\b(edward|edinburgh|wessex)\b/i;
-  if (p.includes("ferguson") || p.includes("sarah")) return /\b(sarah|ferguson|fergie)\b/i;
+  if (p.includes("edward") && !p.includes("andrew") && !p.includes("island"))
+    return /\b(prince edward|duke of edinburgh|earl of wessex|edward windsor)\b/i;
+  if (p.includes("ferguson") || (p.includes("sarah") && !p.includes("mccorquodale")))
+    return /\b(sarah|ferguson|fergie)\b/i;
   if (p.includes("diana")) return /\b(diana|spencer)\b/i;
   if (p.includes("timothy") || p.includes("laurence")) return /\b(timothy|laurence)\b/i;
   if (p.includes("tom parker") || (p.includes("parker") && p.includes("bowles"))) return /\b(tom|parker.?bowles)\b/i;
@@ -227,7 +280,7 @@ function buildCategoryQueries(person: string): Array<{ category: LibraryCategory
       { category: "with_family", query: `Prince William with children photo` }
     );
   }
-  if (/diana/i.test(person)) {
+  if (/diana/i.test(person) && !/frances|shand|mccorquodale|fellowes|earl spencer|charles spencer/i.test(person)) {
     queries.push(
       { category: "formal", query: `Princess Diana elegant gown photo landscape` },
       { category: "with_family", query: `Princess Diana with William Harry photo` },
@@ -238,6 +291,60 @@ function buildCategoryQueries(person: string): Array<{ category: LibraryCategory
       { category: "other", query: `Lady Diana Spencer documentary photo landscape` }
     );
   }
+  if (/frances|shand.?kydd/i.test(person)) {
+    queries.push(
+      { category: "portrait", query: `Frances Shand Kydd portrait photograph horizontal` },
+      { category: "with_family", query: `Frances Shand Kydd with Princess Diana photo` },
+      { category: "event", query: `Frances Shand Kydd Diana mother photo landscape` },
+      { category: "formal", query: `Frances Ruth Roche Shand Kydd formal photo` },
+      { category: "sad", query: `Frances Shand Kydd funeral memorial photo` },
+      { category: "other", query: `Diana mother Frances Shand Kydd documentary photo` },
+      { category: "portrait", query: `Princess Diana mother Frances Shand Kydd archive photo` },
+      { category: "with_family", query: `Frances Shand Kydd Spencer family photo 1960s` },
+      { category: "formal", query: `Frances Shand Kydd wedding mother of the bride Diana` },
+      { category: "other", query: `Frances Ruth Roche young photo landscape` },
+      { category: "event", query: `Frances Shand Kydd Scotland Oban photo` },
+      { category: "smiling", query: `Frances Shand Kydd smiling vintage photograph` }
+    );
+  }
+  if (/mccorquodale/i.test(person)) {
+    queries.push(
+      { category: "portrait", query: `Lady Sarah McCorquodale portrait photo horizontal` },
+      { category: "with_family", query: `Lady Sarah McCorquodale Diana sister photo` },
+      { category: "event", query: `Sarah McCorquodale royal funeral photo landscape` },
+      { category: "formal", query: `Lady Sarah Spencer McCorquodale formal photo` },
+      { category: "other", query: `Diana sister Sarah McCorquodale documentary photograph` },
+      { category: "with_family", query: `Sarah McCorquodale with Charles Spencer Jane Fellowes` },
+      { category: "event", query: `Lady Sarah McCorquodale Althorp photo` },
+      { category: "portrait", query: `Lady Sarah Spencer young portrait photograph` },
+      { category: "formal", query: `Sarah McCorquodale Diana funeral procession photo` },
+      { category: "smiling", query: `Lady Sarah McCorquodale smiling public photo` }
+    );
+  }
+  if (/fellowes/i.test(person)) {
+    queries.push(
+      { category: "portrait", query: `Lady Jane Fellowes portrait photo horizontal` },
+      { category: "with_family", query: `Lady Jane Fellowes Diana sister photo` },
+      { category: "event", query: `Jane Fellowes royal funeral photo landscape` },
+      { category: "formal", query: `Lady Jane Spencer Fellowes formal photo` },
+      { category: "other", query: `Diana sister Jane Fellowes documentary photograph` },
+      { category: "with_family", query: `Jane Fellowes Spencer sisters photo` },
+      { category: "event", query: `Lady Jane Fellowes Westminster Abbey photo` },
+      { category: "portrait", query: `Lady Jane Spencer young portrait photograph` },
+      { category: "formal", query: `Baroness Fellowes Jane Diana funeral photo` },
+      { category: "smiling", query: `Lady Jane Fellowes smiling public photo` }
+    );
+  }
+  if (/charles spencer|earl spencer/i.test(person)) {
+    queries.push(
+      { category: "portrait", query: `Charles Spencer Earl Spencer portrait photo horizontal` },
+      { category: "speech", query: `Earl Spencer funeral speech Diana photo` },
+      { category: "with_family", query: `Charles Spencer Diana brother Althorp photo` },
+      { category: "event", query: `Earl Spencer Althorp House photo landscape` },
+      { category: "formal", query: `Charles Spencer 9th Earl Spencer formal photo` },
+      { category: "other", query: `Diana brother Charles Spencer documentary photograph` }
+    );
+  }
   if (/george|charlotte|louis/i.test(person)) {
     queries.push(
       { category: "with_family", query: `${a} royal family balcony photo` },
@@ -245,7 +352,7 @@ function buildCategoryQueries(person: string): Array<{ category: LibraryCategory
       { category: "smiling", query: `${a} smiling school photo landscape` }
     );
   }
-  if (/eugenie|beatrice|zara|sophie|ferguson|sarah|timothy|laura|tom parker/i.test(person)) {
+  if (/eugenie|beatrice|zara|sophie|ferguson|timothy|laura|tom parker/i.test(person)) {
     queries.push(
       { category: "event", query: `${a} royal wedding guest photo landscape` },
       { category: "formal", query: `${a} formal royal event photo` },
@@ -263,7 +370,7 @@ function imageDescription(person: string, category: LibraryCategory, item: Googl
   return `${person} ${categoryText} image${source}, collected for documentary B-roll and visual matching.${titlePart} Query: ${query}`;
 }
 
-async function googleImageSearch(query: string, num = 20, page = 1): Promise<GoogleImageItem[]> {
+async function googleImageSearch(query: string, num = 20, page = 1, person = ""): Promise<GoogleImageItem[]> {
   const key = getSearchApiKey();
   const url = new URL("https://www.searchapi.io/api/v1/search");
   url.searchParams.set("engine", "google_images");
@@ -273,7 +380,12 @@ async function googleImageSearch(query: string, num = 20, page = 1): Promise<Goo
   url.searchParams.set("gl", "us");
   url.searchParams.set("safe", "active");
   url.searchParams.set("size", "large");
-  url.searchParams.set("aspect_ratio", "wide");
+  const spencerFamily =
+    /frances|shand|kydd|mccorquodale|fellowes|charles spencer|earl spencer/i.test(person);
+  // Archive press photos of Diana's family are often square/portrait — don't force wide-only
+  if (!spencerFamily) {
+    url.searchParams.set("aspect_ratio", "wide");
+  }
   if (page > 1) url.searchParams.set("page", String(page));
 
   const res = await fetch(url);
@@ -295,6 +407,10 @@ function looksClean(item: GoogleImageItem, person: string): { ok: boolean; reaso
   if (BAD_HOSTS.some((h) => hay.includes(h))) return { ok: false, reason: "watermark host" };
   if (BAD_TITLE.some((t) => title.includes(t))) return { ok: false, reason: "bad title" };
   if (/\b(lorem|stock vector|clipart)\b/i.test(title)) return { ok: false, reason: "graphic" };
+  if (/\bprince edward island\b|\bpei\b|edward island national|red earth prince edward/i.test(hay)) {
+    return { ok: false, reason: "prince edward island" };
+  }
+  if (/\b(reddit|r\/|imgur\.com\/)\b/i.test(hay)) return { ok: false, reason: "meme host" };
   // Reject obvious non-person landscape / travel stock that SearchAPI sometimes mixes in
   if (
     /\b(yosemite|bushkill|cathedral rocks|national park|fstoppers|waterfall|mountain range|coast path expands)\b/i.test(
@@ -307,9 +423,14 @@ function looksClean(item: GoogleImageItem, person: string): { ok: boolean; reaso
 
   const w = item.original?.width || 0;
   const h = item.original?.height || 0;
+  const spencerFamily =
+    /frances|shand|kydd|mccorquodale|fellowes|charles spencer|earl spencer/i.test(person);
   if (w && h) {
-    if (w < 900 || h < 500) return { ok: false, reason: "too small" };
-    if (w / h < 1.25) return { ok: false, reason: "not landscape" };
+    const minW = spencerFamily ? 600 : 900;
+    const minH = spencerFamily ? 600 : 500;
+    const minRatio = spencerFamily ? 0.7 : 1.25;
+    if (w < minW || h < minH) return { ok: false, reason: "too small" };
+    if (w / h < minRatio) return { ok: false, reason: "not landscape" };
     if (w / h > 2.6) return { ok: false, reason: "too ultra-wide" };
   }
   if (title.length > 10 && !personTitleHints(person).test(title)) {
@@ -582,7 +703,7 @@ export async function collectPersonImages(params: {
       log(`[library] ${person}: ${query} (page ${page})`);
       let results: GoogleImageItem[] = [];
       try {
-        results = await googleImageSearch(query, 22, page);
+        results = await googleImageSearch(query, 22, page, person);
       } catch (err) {
         log(`[library] search failed: ${err instanceof Error ? err.message : err}`);
         break;
