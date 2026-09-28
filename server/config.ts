@@ -2,10 +2,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 
-dotenv.config();
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT_DIR = path.resolve(__dirname, "..");
+
+dotenv.config();
+dotenv.config({ path: path.join(ROOT_DIR, "contactbox.env"), override: false });
 
 export function requireEnv(name: string): string {
   const value = process.env[name]?.trim();

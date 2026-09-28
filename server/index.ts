@@ -51,6 +51,7 @@ import { nicheSupportsYoutubeRaw, queueRawIngest } from "./rawFootage/rawIngestQ
 import { parseUserYoutubeRawUrls } from "./rawFootage/youtubeUrls.js";
 import {
   clearSessionCookie,
+  getSessionUsername,
   isAuthenticated,
   requireAuth,
   setSessionCookie,
@@ -102,8 +103,8 @@ app.post("/api/auth/login", (req, res) => {
   if (!validateCredentials(username, password)) {
     return res.status(401).json({ error: "Invalid username or password" });
   }
-  setSessionCookie(res);
-  res.json({ ok: true, username });
+  setSessionCookie(res, username);
+  res.json({ ok: true, username: username.trim().toLowerCase() });
 });
 
 app.post("/api/auth/logout", (_req, res) => {
@@ -112,8 +113,9 @@ app.post("/api/auth/logout", (_req, res) => {
 });
 
 app.get("/api/auth/me", (req, res) => {
-  if (!isAuthenticated(req)) return res.status(401).json({ error: "Unauthorized" });
-  res.json({ ok: true, username: process.env.APP_USERNAME?.trim() || "ayush" });
+  const username = getSessionUsername(req);
+  if (!username) return res.status(401).json({ error: "Unauthorized" });
+  res.json({ ok: true, username });
 });
 
 registerPublicLibraryRenderRoute(app);

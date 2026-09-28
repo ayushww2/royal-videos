@@ -63,8 +63,8 @@ export function AppShell({
         <div className="brand">
           <div className="brand-mark" />
           <div>
-            <h1>Documentary Video Factory</h1>
-            <p>Visual intelligence studio</p>
+            <h1>Royal Videos</h1>
+            <p>Royal production console</p>
           </div>
         </div>
         <nav className="nav">

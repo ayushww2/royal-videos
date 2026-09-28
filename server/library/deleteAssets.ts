@@ -4,6 +4,7 @@ import type {
   PersonLibraryIndex,
   RootLibraryIndex,
 } from "./types.js";
+import { countLibraryAssets } from "./types.js";
 import { r2DeleteObject, r2GetJson, r2PutJson } from "./r2.js";
 import { loadPersonLibrary } from "./collectImages.js";
 import { clearRoyalLibraryCache } from "../visualIntelligence/royalV2/library.js";
@@ -21,20 +22,10 @@ function rootIndexKey(): string {
 }
 
 function rebuildPersonIndex(personIndex: PersonLibraryIndex, assets: LibraryAsset[]): PersonLibraryIndex {
-  const images = assets.filter((a) => a.mediaType === "image");
-  const raw = assets.filter((a) => a.mediaType === "raw_footage");
-  const byCategory: PersonLibraryIndex["counts"]["byCategory"] = {};
-  for (const a of assets) {
-    byCategory[a.category] = (byCategory[a.category] || 0) + 1;
-  }
   return {
     ...personIndex,
     updatedAt: new Date().toISOString(),
-    counts: {
-      images: images.length,
-      raw_footage: raw.length,
-      byCategory,
-    },
+    counts: countLibraryAssets(assets),
     assets: assets.sort((a, b) => a.number - b.number || a.assetId.localeCompare(b.assetId)),
   };
 }
@@ -60,6 +51,8 @@ async function publishPersonLibraryIndex(mergedIndex: PersonLibraryIndex): Promi
     personSlug,
     images: mergedIndex.counts.images,
     raw_footage: mergedIndex.counts.raw_footage,
+    trusted_clips: mergedIndex.counts.trusted_clips,
+    raw_clips: mergedIndex.counts.raw_clips,
     group: peopleMap.get(personSlug)?.group,
   });
   const nicheOut: NicheLibraryIndex = {
@@ -79,7 +72,12 @@ async function publishPersonLibraryIndex(mergedIndex: PersonLibraryIndex): Promi
     nicheSlug,
     peopleCount: nicheOut.people.length,
     images: nicheOut.people.reduce((n, p) => n + p.images, 0),
-    raw_footage: nicheOut.people.reduce((n, p) => n + p.raw_footage, 0),
+    raw_footage: nicheOut.people.reduce((n, p) => n + (p.raw_footage || 0), 0),
+    trusted_clips: nicheOut.people.reduce((n, p) => n + (p.trusted_clips || 0), 0),
+    raw_clips: nicheOut.people.reduce(
+      (n, p) => n + (p.raw_clips ?? (p.raw_footage || 0) + (p.trusted_clips || 0)),
+      0
+    ),
   });
   await r2PutJson(rootIndexKey(), {
     updatedAt: new Date().toISOString(),
@@ -94,6 +92,8 @@ async function publishPersonLibraryIndex(mergedIndex: PersonLibraryIndex): Promi
     nicheSlug,
     imageCount: mergedIndex.counts.images,
     rawFootageCount: mergedIndex.counts.raw_footage,
+    trustedClipCount: mergedIndex.counts.trusted_clips,
+    rawClipCount: mergedIndex.counts.raw_clips,
     assets: images.map((a) => ({
       assetId: a.assetId,
       number: a.number,
@@ -115,7 +115,6 @@ export async function deletePersonLibraryAssets(
 
   const idSet = new Set(assetIds.map((id) => String(id).trim()).filter(Boolean));
   if (!idSet.size) return { deleted: 0, notFound: 0, errors: [] };
-  if (idSet.size > 200) throw new Error("Too many assets in one request (max 200)");
 
   const toRemove = idx.assets.filter((a) => idSet.has(a.assetId));
   const notFound = idSet.size - toRemove.length;

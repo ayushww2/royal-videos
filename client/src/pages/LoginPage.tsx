@@ -46,7 +46,7 @@ export function LoginPage() {
       await api<{ ok: boolean }>("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
       markLoggedIn();
       navigate("/", { replace: true });
@@ -64,8 +64,8 @@ export function LoginPage() {
         <div className="login-brand">
           <div className="brand-mark" />
           <div>
-            <h1>Documentary Video Factory</h1>
-            <p>Sign in to continue</p>
+            <h1>Royal Videos</h1>
+            <p>Sign in to the royal production console</p>
           </div>
         </div>
         <div className="field">
