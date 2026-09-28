@@ -23,6 +23,11 @@ import {
 } from "./trustedUpload.js";
 import { countLibraryAssets, isRawClipMediaType, slugify } from "./types.js";
 import { deletePersonLibraryAssets } from "./deleteAssets.js";
+import {
+  liveNichePeopleCounts,
+  liveRootNicheSummaries,
+  rebuildNicheLibraryCounts,
+} from "./rebuildLibraryCounts.js";
 import { getRoyalPruneJob, startRoyalPruneJob } from "./pruneSolePortraits.js";
 
 const upload = multer({
@@ -357,11 +362,22 @@ export function registerLibraryRoutes(app: Express): void {
     }
   });
 
+  app.post("/api/media-library/:nicheSlug/rebuild-counts", async (req, res) => {
+    try {
+      if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
+      const nicheOut = await rebuildNicheLibraryCounts(req.params.nicheSlug);
+      res.json({ ok: true, nicheSlug: nicheOut.nicheSlug, people: nicheOut.people.length });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   app.get("/api/media-library", async (_req, res) => {
     try {
       if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
       const root = await loadRootLibrary();
-      res.json(enrichRoot(root));
+      const niches = await liveRootNicheSummaries(root);
+      res.json(enrichRoot({ ...root, niches }));
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
@@ -372,7 +388,8 @@ export function registerLibraryRoutes(app: Express): void {
       if (!r2Configured()) return res.status(503).json({ error: "R2 not configured" });
       const niche = await loadNicheLibrary(req.params.nicheSlug);
       if (!niche) return res.status(404).json({ error: "Niche not found" });
-      res.json(enrichNichePeople(niche));
+      const people = await liveNichePeopleCounts(niche);
+      res.json(enrichNichePeople({ ...niche, people }));
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
