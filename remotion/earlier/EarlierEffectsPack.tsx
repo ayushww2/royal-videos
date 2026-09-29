@@ -298,13 +298,12 @@ export const ClassicBlueWhiteLowerThird: React.FC<
         style={{
           position:
             "absolute",
-          left:
-            110 -
-            (1 - enter) * 1000 -
-            (1 - exit) * 1000,
+          left: 110,
           bottom: 78,
-          width: 770,
+          width: "max-content",
           height: 140,
+          transform:
+            `translateX(-${((1 - enter) + (1 - exit)) * 190}%)`,
         }}
       >
         <div
@@ -313,7 +312,7 @@ export const ClassicBlueWhiteLowerThird: React.FC<
               "absolute",
             left: 22,
             top: 38,
-            width: 700,
+            width: "100%",
             height: 94,
             border:
               "5px solid rgba(255,255,255,0.96)",
@@ -325,43 +324,43 @@ export const ClassicBlueWhiteLowerThird: React.FC<
         <div
           style={{
             position:
-              "absolute",
-            left: 0,
+              "relative",
             top: 20,
-            width: 700,
             height: 94,
+            width: "fit-content",
+            display: "flex",
+            alignItems: "center",
+            padding:
+              "0 30px",
+            boxSizing:
+              "border-box",
             background:
               "linear-gradient(90deg, #102D6B 0%, #2558B8 55%, #173B83 100%)",
             boxShadow:
               "0 14px 35px rgba(0,0,0,0.34)",
           }}
-        />
-
-        <div
-          style={{
-            position:
-              "absolute",
-            left: 28,
-            top: 20,
-            height: 94,
-            display: "flex",
-            alignItems: "center",
-            color: "#FFFDF5",
-            fontFamily:
-              "Georgia, 'Times New Roman', serif",
-            fontWeight: 900,
-            fontSize: 38,
-            lineHeight: 1,
-            letterSpacing: 0.3,
-            textTransform:
-              "uppercase",
-            WebkitTextStroke:
-              "1.25px rgba(0,0,0,0.72)",
-            textShadow:
-              "2px 3px 0 rgba(0,0,0,0.86), 0 5px 10px rgba(0,0,0,0.42)",
-          }}
         >
-          {primaryText}
+          <div
+            style={{
+              color: "#FFFFFF",
+              fontFamily:
+                "Georgia, 'Times New Roman', serif",
+              fontWeight: 900,
+              fontSize: 42,
+              lineHeight: 1,
+              letterSpacing: 0.4,
+              whiteSpace:
+                "nowrap",
+              textTransform:
+                "uppercase",
+              WebkitTextStroke:
+                "1.75px rgba(0,0,0,0.9)",
+              textShadow:
+                "3px 3px 0 rgba(0,0,0,0.95), 0 5px 12px rgba(0,0,0,0.58)",
+            }}
+          >
+            {primaryText}
+          </div>
         </div>
       </div>
 
