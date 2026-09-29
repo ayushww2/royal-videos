@@ -64,8 +64,8 @@ function demoPropsFor(
   switch (presetId) {
     case "01_classic_blue_white_lower_third":
       return {
-        primaryText: copy.primaryText || "DR. ROBERT HAYES",
-        secondaryText: copy.secondaryText || "MARINE ARCHAEOLOGIST",
+        primaryText: copy.primaryText ?? "DR. ROBERT HAYES",
+        secondaryText: copy.secondaryText ?? "",
         durationFrames: 120,
         showPresetLabel: false,
       };
@@ -85,9 +85,9 @@ function demoPropsFor(
       };
     case "29_classic_purple_white_lower_third":
       return {
-        primaryText: copy.primaryText || "QUEEN ELIZABETH II",
-        secondaryText: copy.secondaryText || "CORONATION ARCHIVE",
-        locationTag: copy.locationTag || "LONDON",
+        primaryText: copy.primaryText ?? "QUEEN ELIZABETH II",
+        secondaryText: copy.secondaryText ?? "",
+        locationTag: copy.locationTag ?? "",
         durationFrames: 120,
         showPresetLabel: false,
       };

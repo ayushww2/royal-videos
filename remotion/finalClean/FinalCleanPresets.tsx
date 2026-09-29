@@ -28,7 +28,7 @@ export type SlideshowProps = {
 
 export type LowerThirdProps = {
   primaryText: string;
-  secondaryText: string;
+  secondaryText?: string;
   locationTag?: string;
   showPresetLabel?: boolean;
   durationFrames?: number;
@@ -640,8 +640,6 @@ export const CrystalStageSlideshow: React.FC<SlideshowProps> = ({
 
 export const ClassicPurpleWhiteLowerThird: React.FC<LowerThirdProps> = ({
   primaryText,
-  secondaryText,
-  locationTag,
   showPresetLabel = false,
   durationFrames = 120,
 }) => {
@@ -663,96 +661,62 @@ export const ClassicPurpleWhiteLowerThird: React.FC<LowerThirdProps> = ({
       <div
         style={{
           position: "absolute",
-          left: 100 - (1 - enter) * 120 - (1 - exit) * 80,
-          bottom: 64,
-          width: 660,
-          height: 150,
+          left: 110 - (1 - enter) * 150 - (1 - exit) * 80,
+          bottom: 78,
+          width: 770,
+          height: 140,
           opacity: progress,
         }}
       >
         <div
           style={{
             position: "absolute",
-            left: 0,
-            top: 22,
-            width: 560,
-            height: 98,
-            background: "linear-gradient(90deg, #5B2CB8 0%, #7441D7 100%)",
-            boxShadow: "0 12px 30px rgba(0,0,0,0.30)",
+            left: 22,
+            top: 38,
+            width: 700,
+            height: 94,
+            border: "5px solid rgba(255,255,255,0.96)",
+            boxSizing: "border-box",
           }}
         />
         <div
           style={{
             position: "absolute",
-            left: 24,
-            top: 42,
-            color: "#FFFFFF",
-            fontFamily: "Georgia, serif",
-            fontWeight: 700,
-            fontSize: 32,
-            lineHeight: 1.05,
-            textShadow: "2px 2px 0 rgba(0,0,0,0.55)",
-            letterSpacing: 0.5,
-            maxWidth: 500,
+            left: 0,
+            top: 20,
+            width: 700,
+            height: 94,
+            background: "#BB29BB",
+            boxShadow: "0 14px 35px rgba(0,0,0,0.34)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            left: 28,
+            top: 20,
+            height: 94,
+            display: "flex",
+            alignItems: "center",
+            color: "#FFFDF5",
+            fontFamily: "Georgia, 'Times New Roman', serif",
+            fontWeight: 900,
+            fontSize: 38,
+            lineHeight: 1,
+            letterSpacing: 0.3,
+            maxWidth: 640,
             textTransform: "uppercase",
+            WebkitTextStroke: "1.25px rgba(0,0,0,0.72)",
+            textShadow:
+              "2px 3px 0 rgba(0,0,0,0.86), 0 5px 10px rgba(0,0,0,0.42)",
           }}
         >
           {primaryText}
         </div>
-        <div
-          style={{
-            position: "absolute",
-            left: 24,
-            top: 94,
-            color: "#F1F1F1",
-            fontFamily: "Inter, Arial, sans-serif",
-            fontWeight: 800,
-            fontSize: 20,
-            lineHeight: 1,
-            letterSpacing: 0.5,
-            textTransform: "uppercase",
-            textShadow: "1px 1px 0 rgba(0,0,0,0.55)",
-          }}
-        >
-          {secondaryText}
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
-            left: 548,
-            top: 72,
-            width: 64,
-            height: 54,
-            borderLeft: "6px solid rgba(255,255,255,0.95)",
-            borderBottom: "6px solid rgba(255,255,255,0.95)",
-            opacity: 0.95,
-          }}
-        />
-
-        {locationTag ? (
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              padding: "7px 14px",
-              background: "rgba(0,0,0,0.62)",
-              color: "white",
-              fontFamily: "Inter, Arial, sans-serif",
-              fontWeight: 900,
-              fontSize: 14,
-              letterSpacing: 1.6,
-              textTransform: "uppercase",
-            }}
-          >
-            {locationTag}
-          </div>
-        ) : null}
       </div>
 
       {showPresetLabel ? (
-        <PresetLabel number="29" name="Classic Purple Lower Third" accent="#8F6BF3" />
+        <PresetLabel number="29" name="Classic Purple Lower Third" accent="#BB29BB" />
       ) : null}
     </AbsoluteFill>
   );
