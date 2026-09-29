@@ -146,6 +146,7 @@ function demoPropsFor(presetId: string, holdFrames: number): Record<string, unkn
         defaultSlideFrames: slideFrames,
         transitionFrames,
         durationFrames: holdFrames,
+        holdLastFrame: true,
         showPresetLabel: false,
       };
       }
