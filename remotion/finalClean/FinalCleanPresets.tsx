@@ -701,7 +701,7 @@ export const ClassicPurpleWhiteLowerThird: React.FC<LowerThirdProps> = ({
               letterSpacing: 0.4,
               whiteSpace: "nowrap",
               textTransform: "uppercase",
-              WebkitTextStroke: "0 transparent",
+              WebkitTextStroke: "1px rgba(0,0,0,0.10)",
               textShadow: "none",
             }}
           >

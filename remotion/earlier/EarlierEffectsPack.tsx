@@ -354,7 +354,7 @@ export const ClassicBlueWhiteLowerThird: React.FC<
               textTransform:
                 "uppercase",
               WebkitTextStroke:
-                "0 transparent",
+                "1px rgba(0,0,0,0.10)",
               textShadow:
                 "none",
             }}
