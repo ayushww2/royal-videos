@@ -654,18 +654,15 @@ export const ClassicPurpleWhiteLowerThird: React.FC<LowerThirdProps> = ({
     [1, 0],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
-  const progress = enter * exit;
-
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>
       <div
         style={{
           position: "absolute",
-          left: 110 - (1 - enter) * 150 - (1 - exit) * 80,
+          left: 110 - (1 - enter) * 1000 - (1 - exit) * 1000,
           bottom: 78,
           width: 770,
           height: 140,
-          opacity: progress,
         }}
       >
         <div

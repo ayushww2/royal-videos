@@ -287,9 +287,6 @@ export const ClassicBlueWhiteLowerThird: React.FC<
       }
     );
 
-  const visible =
-    enter * exit;
-
   return (
     <AbsoluteFill
       style={{
@@ -303,12 +300,11 @@ export const ClassicBlueWhiteLowerThird: React.FC<
             "absolute",
           left:
             110 -
-            (1 - enter) * 150 -
-            (1 - exit) * 80,
+            (1 - enter) * 1000 -
+            (1 - exit) * 1000,
           bottom: 78,
           width: 770,
           height: 140,
-          opacity: visible,
         }}
       >
         <div
