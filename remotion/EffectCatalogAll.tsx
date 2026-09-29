@@ -135,14 +135,20 @@ function demoPropsFor(presetId: string, holdFrames: number): Record<string, unkn
         showPresetLabel: false,
       };
     default:
+      {
+        const transitionFrames = 18;
+        const slideFrames = Math.ceil(
+          (holdFrames + transitionFrames * (demoSlides.length - 1)) / demoSlides.length
+        );
       return {
         slides: demoSlides,
-        durationPerSlide: Math.round(holdFrames / 3),
-        defaultSlideFrames: Math.round(holdFrames / 3),
-        transitionFrames: 18,
+        durationPerSlide: slideFrames,
+        defaultSlideFrames: slideFrames,
+        transitionFrames,
         durationFrames: holdFrames,
         showPresetLabel: false,
       };
+      }
   }
 }
 
