@@ -31,6 +31,7 @@ export type LowerThirdProps = {
   secondaryText: string;
   locationTag?: string;
   showPresetLabel?: boolean;
+  durationFrames?: number;
 };
 
 export type CleanPresetId =
@@ -642,23 +643,31 @@ export const ClassicPurpleWhiteLowerThird: React.FC<LowerThirdProps> = ({
   secondaryText,
   locationTag,
   showPresetLabel = false,
+  durationFrames = 120,
 }) => {
   const frame = useCurrentFrame();
   const enter = interpolate(frame, [0, 14], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
+  const exit = interpolate(
+    frame,
+    [Math.max(0, durationFrames - 14), durationFrames],
+    [1, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const progress = enter * exit;
 
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>
       <div
         style={{
           position: "absolute",
-          left: 100 - (1 - enter) * 120,
+          left: 100 - (1 - enter) * 120 - (1 - exit) * 80,
           bottom: 64,
           width: 660,
           height: 150,
-          opacity: enter,
+          opacity: progress,
         }}
       >
         <div
