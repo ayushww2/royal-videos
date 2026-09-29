@@ -139,9 +139,9 @@ export const RemotionRoot: React.FC = () => (
           blendMode: 'screen',
           transitionVolume: 0.9,
           stillPaths: [
-            'overlays/transitions/preview-stills/cave.png',
-            'overlays/transitions/preview-stills/a.png',
-            'overlays/transitions/preview-stills/b.png',
+            'demo/roadblock.png',
+            'demo/statue.png',
+            'demo/research.png',
           ],
         } satisfies TransitionPreviewProps
       }
