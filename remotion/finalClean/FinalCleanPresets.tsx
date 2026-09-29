@@ -687,7 +687,7 @@ export const ClassicPurpleWhiteLowerThird: React.FC<LowerThirdProps> = ({
             alignItems: "center",
             padding: "0 30px",
             boxSizing: "border-box",
-            background: "#BB29BB",
+            background: "#800080",
             boxShadow: "0 14px 35px rgba(0,0,0,0.34)",
           }}
         >
@@ -711,7 +711,7 @@ export const ClassicPurpleWhiteLowerThird: React.FC<LowerThirdProps> = ({
       </div>
 
       {showPresetLabel ? (
-        <PresetLabel number="29" name="Classic Purple Lower Third" accent="#BB29BB" />
+        <PresetLabel number="29" name="Classic Purple Lower Third" accent="#800080" />
       ) : null}
     </AbsoluteFill>
   );
