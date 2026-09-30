@@ -151,7 +151,20 @@ export const RoyalTypewriterQuote: React.FC<
           }}
         >
           {typedQuote}
-          {typingComplete ? "”" : null}
+          {typingComplete ? (
+            <span
+              style={{
+                display: "inline-block",
+                marginLeft: 8,
+                fontSize: "1.48em",
+                fontWeight: 700,
+                lineHeight: 0,
+                verticalAlign: "-0.18em",
+              }}
+            >
+              ”
+            </span>
+          ) : null}
           {cursorVisible ? (
             <span
               style={{
