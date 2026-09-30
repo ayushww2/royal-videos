@@ -83,11 +83,16 @@ export const RoyalTypewriterQuote: React.FC<
       <div
         style={{
           position: "absolute",
-          right: 0,
-          top: 0,
-          width: "43%",
-          height: "100%",
+          right: "5.2%",
+          top: "25%",
+          width: "26%",
+          height: "50%",
+          padding: 7,
+          border: "3px solid rgba(255,255,255,0.94)",
+          boxSizing: "border-box",
+          backgroundColor: "#050506",
           overflow: "hidden",
+          boxShadow: "0 28px 80px rgba(0,0,0,0.7)",
         }}
       >
         <Img
@@ -96,21 +101,15 @@ export const RoyalTypewriterQuote: React.FC<
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            objectPosition: "50% 28%",
+            objectPosition: "50% 34%",
             transform: `scale(${portraitScale})`,
-            filter: "grayscale(0.28) contrast(1.08) brightness(0.72)",
+            filter: "grayscale(0.12) contrast(1.08) brightness(0.78)",
           }}
         />
         <AbsoluteFill
           style={{
             background:
-              "linear-gradient(90deg, #020203 0%, rgba(2,2,3,0.8) 18%, rgba(2,2,3,0.12) 58%, rgba(2,2,3,0.2) 100%)",
-          }}
-        />
-        <AbsoluteFill
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(0,0,0,0.12) 0%, transparent 48%, rgba(0,0,0,0.7) 100%)",
+              "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, transparent 62%, rgba(0,0,0,0.22) 100%)",
           }}
         />
       </div>
@@ -118,31 +117,22 @@ export const RoyalTypewriterQuote: React.FC<
       <div
         style={{
           position: "absolute",
-          left: 112,
-          top: 96,
-          width: 44,
-          height: 4,
-          backgroundColor: "white",
-          opacity: 0.92,
-        }}
-      />
-
-      <div
-        style={{
-          position: "absolute",
-          left: 110,
-          top: 190,
-          width: "54%",
-          minHeight: 500,
+          left: "9.8%",
+          top: "25.4%",
+          width: "52%",
+          minHeight: 520,
         }}
       >
         <div
           style={{
-            color: "rgba(255,255,255,0.36)",
+            position: "absolute",
+            left: -74,
+            top: -24,
+            color: "#FFFFFF",
             fontFamily: "Georgia, 'Times New Roman', serif",
-            fontSize: 106,
-            lineHeight: 0.7,
-            height: 72,
+            fontWeight: 700,
+            fontSize: 92,
+            lineHeight: 1,
           }}
         >
           “
@@ -150,24 +140,25 @@ export const RoyalTypewriterQuote: React.FC<
         <div
           style={{
             color: "#FFFFFF",
-            fontFamily: "'Courier New', Courier, monospace",
-            fontWeight: 700,
-            fontSize: quote.length > 105 ? 43 : quote.length > 78 ? 49 : 55,
-            lineHeight: 1.3,
-            letterSpacing: 0.4,
+            fontFamily: "Georgia, 'Times New Roman', serif",
+            fontWeight: 500,
+            fontSize: quote.length > 130 ? 52 : quote.length > 88 ? 59 : 66,
+            lineHeight: 1.28,
+            letterSpacing: 0.15,
             whiteSpace: "pre-wrap",
             textWrap: "balance",
-            textShadow: "0 2px 10px rgba(0,0,0,0.72)",
+            textShadow: "0 2px 10px rgba(0,0,0,0.64)",
           }}
         >
           {typedQuote}
+          {typingComplete ? "”" : null}
           {cursorVisible ? (
             <span
               style={{
                 display: "inline-block",
-                width: 4,
+                width: 3,
                 height: "0.9em",
-                marginLeft: 7,
+                marginLeft: 6,
                 verticalAlign: "-0.08em",
                 backgroundColor: "white",
               }}
@@ -177,7 +168,7 @@ export const RoyalTypewriterQuote: React.FC<
 
         <div
           style={{
-            marginTop: 40,
+            marginTop: 42,
             opacity: attributionOpacity,
             transform: `translateY(${(1 - attributionOpacity) * 10}px)`,
           }}
@@ -185,24 +176,24 @@ export const RoyalTypewriterQuote: React.FC<
           <div
             style={{
               color: "white",
-              fontFamily: "Inter, Arial, sans-serif",
-              fontWeight: 900,
-              fontSize: 23,
-              letterSpacing: 3,
+              fontFamily: "Georgia, 'Times New Roman', serif",
+              fontWeight: 700,
+              fontSize: 20,
+              letterSpacing: 4.2,
               textTransform: "uppercase",
             }}
           >
-            {personName}
+            — {personName}
           </div>
           {context ? (
             <div
               style={{
                 marginTop: 9,
-                color: "rgba(255,255,255,0.58)",
-                fontFamily: "Inter, Arial, sans-serif",
-                fontWeight: 650,
-                fontSize: 16,
-                letterSpacing: 2.1,
+                color: "rgba(255,255,255,0.52)",
+                fontFamily: "Georgia, 'Times New Roman', serif",
+                fontWeight: 600,
+                fontSize: 14,
+                letterSpacing: 2.8,
                 textTransform: "uppercase",
               }}
             >
@@ -215,7 +206,7 @@ export const RoyalTypewriterQuote: React.FC<
       <AbsoluteFill
         style={{
           pointerEvents: "none",
-          opacity: 0.035,
+          opacity: 0.026,
           mixBlendMode: "screen",
           backgroundImage: `
             radial-gradient(circle at 18% 24%, white 0 1px, transparent 1.3px),
