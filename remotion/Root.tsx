@@ -45,6 +45,10 @@ import {
   ROYAL_SIMPLE_IMAGE_EFFECT_COUNT,
 } from './RoyalSimpleImageTransitionsCatalog';
 import {
+  RoyalTypewriterQuote,
+  type RoyalTypewriterQuoteProps,
+} from './RoyalTypewriterQuote';
+import {
   GlitchCatalogAll,
   type GlitchCatalogAllProps,
   GLITCH_CATALOG_COUNT,
@@ -173,6 +177,24 @@ export const RemotionRoot: React.FC = () => (
           ),
         };
       }}
+    />
+    <Composition
+      id="RoyalTypewriterQuote"
+      component={RoyalTypewriterQuote}
+      durationInFrames={240}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={
+        {
+          quote:
+            'The Earth is at a tipping point, and we face a stark choice.',
+          personName: 'Prince William',
+          context: 'The Earthshot Prize',
+          portraitPath: 'demo/research.png',
+          durationFrames: 240,
+        } satisfies RoyalTypewriterQuoteProps
+      }
     />
     <Composition
       id="CinematicIntro"
