@@ -40,6 +40,11 @@ import {
   ROYAL_SAFE_IMAGE_EFFECT_COUNT,
 } from './RoyalSafeImageEffectsCatalog';
 import {
+  RoyalSimpleImageTransitionsCatalog,
+  type RoyalSimpleImageTransitionsCatalogProps,
+  ROYAL_SIMPLE_IMAGE_EFFECT_COUNT,
+} from './RoyalSimpleImageTransitionsCatalog';
+import {
   GlitchCatalogAll,
   type GlitchCatalogAllProps,
   GLITCH_CATALOG_COUNT,
@@ -142,6 +147,29 @@ export const RemotionRoot: React.FC = () => (
         return {
           durationInFrames: Math.round(
             holdSec * ROYAL_SAFE_IMAGE_EFFECT_COUNT * 30,
+          ),
+        };
+      }}
+    />
+    <Composition
+      id="RoyalSimpleImageTransitionsCatalog"
+      component={RoyalSimpleImageTransitionsCatalog}
+      durationInFrames={ROYAL_SIMPLE_IMAGE_EFFECT_COUNT * 3 * 30}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={
+        {holdSec: 3} satisfies RoyalSimpleImageTransitionsCatalogProps
+      }
+      calculateMetadata={({
+        props,
+      }: {
+        props: RoyalSimpleImageTransitionsCatalogProps;
+      }) => {
+        const holdSec = props.holdSec ?? 3;
+        return {
+          durationInFrames: Math.round(
+            holdSec * ROYAL_SIMPLE_IMAGE_EFFECT_COUNT * 30,
           ),
         };
       }}
