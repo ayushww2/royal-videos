@@ -113,6 +113,8 @@ export const ROYAL_IMAGE_MOTIONS: MotionDefinition[] = [
     name: "Pull And Pan",
     description: "Widens while shifting toward the surrounding people or environment.",
     kind: "pull_pan",
+    focusX: 0.5,
+    focusY: 0.25,
   },
   {
     id: "13",
@@ -350,7 +352,10 @@ const StandardMotion: React.FC<{
     <AbsoluteFill style={{ overflow: "hidden", backgroundColor: "#05070b" }}>
       <Img
         src={src}
-        style={imageStyle(scale, x, y, rotate, transformOrigin)}
+        style={{
+          ...imageStyle(scale, x, y, rotate, transformOrigin),
+          objectPosition: `${(motion.focusX ?? 0.5) * 100}% ${(motion.focusY ?? 0.5) * 100}%`,
+        }}
       />
     </AbsoluteFill>
   );
