@@ -30,6 +30,11 @@ import {
   MOTION_CATALOG_COUNT,
 } from './MotionCatalogAll';
 import {
+  RoyalImageMotionCatalog,
+  type RoyalImageMotionCatalogProps,
+  ROYAL_IMAGE_MOTION_COUNT,
+} from './RoyalImageMotionCatalog';
+import {
   GlitchCatalogAll,
   type GlitchCatalogAllProps,
   GLITCH_CATALOG_COUNT,
@@ -95,6 +100,23 @@ export const RemotionRoot: React.FC = () => (
         const holdSec = props.holdSec ?? 3.2;
         return {
           durationInFrames: Math.round(holdSec * MOTION_CATALOG_COUNT * 30),
+        };
+      }}
+    />
+    <Composition
+      id="RoyalImageMotionCatalog"
+      component={RoyalImageMotionCatalog}
+      durationInFrames={ROYAL_IMAGE_MOTION_COUNT * 3 * 30}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{holdSec: 3} satisfies RoyalImageMotionCatalogProps}
+      calculateMetadata={({props}: {props: RoyalImageMotionCatalogProps}) => {
+        const holdSec = props.holdSec ?? 3;
+        return {
+          durationInFrames: Math.round(
+            holdSec * ROYAL_IMAGE_MOTION_COUNT * 30,
+          ),
         };
       }}
     />
