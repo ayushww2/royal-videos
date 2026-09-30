@@ -407,8 +407,8 @@ const SafeEffectScene: React.FC<{
         <>
           <BlurredBackdrop
             src={src}
-            scale={1.12 + progress * 0.035}
-            x={-1.8 + progress * 3.6}
+            scale={1.16 - progress * 0.07}
+            x={-4 + progress * 8}
           />
           <div
             style={{
@@ -432,7 +432,7 @@ const SafeEffectScene: React.FC<{
           <SafeCard
             src={src}
             inset="9% 14%"
-            transform={`translate(${-16 + progress * 28}px, ${8 - progress * 16}px) scale(${0.92 + progress * 0.065})`}
+            transform={`translate(${34 - progress * 68}px, ${14 - progress * 28}px) scale(${0.9 + progress * 0.08})`}
           />
         </>
       );
