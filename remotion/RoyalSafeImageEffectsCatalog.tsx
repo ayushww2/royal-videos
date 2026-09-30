@@ -407,21 +407,32 @@ const SafeEffectScene: React.FC<{
         <>
           <BlurredBackdrop
             src={src}
-            scale={1.1 + progress * 0.018}
-            x={-1 + progress * 2}
+            scale={1.12 + progress * 0.035}
+            x={-1.8 + progress * 3.6}
           />
           <div
             style={{
               position: "absolute",
-              inset: "12% 11% 8% 7%",
-              border: "2px solid rgba(255,255,255,0.35)",
-              transform: `translate(${10 - progress * 18}px, ${8 - progress * 10}px)`,
+              inset: "14% 10% 5% 18%",
+              background: "rgba(128,0,128,0.46)",
+              border: "2px solid rgba(255,255,255,0.58)",
+              boxShadow: "0 22px 65px rgba(0,0,0,0.48)",
+              transform: `translate(${18 - progress * 12}px, ${12 - progress * 7}px) rotate(1.1deg)`,
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              inset: "10% 17% 11% 8%",
+              background: "rgba(255,255,255,0.2)",
+              border: "2px solid rgba(255,255,255,0.42)",
+              transform: `translate(${-14 + progress * 9}px, ${8 - progress * 5}px) rotate(-0.7deg)`,
             }}
           />
           <SafeCard
             src={src}
-            inset="8% 9%"
-            transform={`translate(${-8 + progress * 14}px, ${5 - progress * 10}px) scale(${0.95 + progress * 0.038})`}
+            inset="9% 14%"
+            transform={`translate(${-16 + progress * 28}px, ${8 - progress * 16}px) scale(${0.92 + progress * 0.065})`}
           />
         </>
       );
