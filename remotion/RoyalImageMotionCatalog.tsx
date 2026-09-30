@@ -114,7 +114,7 @@ export const ROYAL_IMAGE_MOTIONS: MotionDefinition[] = [
     description: "Widens while shifting toward the surrounding people or environment.",
     kind: "pull_pan",
     focusX: 0.5,
-    focusY: 0.25,
+    focusY: 0,
   },
   {
     id: "13",
@@ -329,9 +329,10 @@ const StandardMotion: React.FC<{
       y = 1.1 - progress * 1.4;
       break;
     case "pull_pan":
-      scale = 1.1 - progress * 0.075;
+      scale = 1.075 - progress * 0.055;
       x = -2.5 + progress * 5;
-      y = -1 + progress * 1.5;
+      y = progress * 0.6;
+      transformOrigin = `${(motion.focusX ?? 0.5) * 100}% ${(motion.focusY ?? 0.5) * 100}%`;
       break;
     case "micro_drift":
       scale = 1.035 + progress * 0.012;
