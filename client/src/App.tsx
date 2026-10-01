@@ -4,7 +4,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { NewJobPage } from "./pages/NewJobPage";
 import { JobsPage } from "./pages/JobsPage";
 import { JobStatusPage } from "./pages/JobStatusPage";
-import { SceneReviewPage } from "./pages/SceneReviewPage";
+import { SceneReviewWorkspace as SceneReviewPage } from "./pages/SceneReviewWorkspace";
 import { SceneReviewHomePage } from "./pages/SceneReviewHomePage";
 import { TimelineEditorPage } from "./pages/TimelineEditorPage";
 import { VisualLibraryPage } from "./pages/VisualLibraryPage";
