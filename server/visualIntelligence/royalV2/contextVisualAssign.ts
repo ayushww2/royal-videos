@@ -13,6 +13,7 @@ import { canonicalRoyalPerson, royalPersonMentions } from "./taxonomy.js";
 const REASONING_MODEL = process.env.ROYAL_REASONING_MODEL || "gpt-6.1-sol";
 const MIN_REUSE_GAP_SEC = 8 * 60;
 const MAX_USES = 2;
+const MAX_UNIQUE_CLIPS = 120;
 const CLIP_SHARE_LOW = 0.4;
 const CLIP_SHARE_HIGH = 0.6;
 
@@ -73,10 +74,11 @@ function scoreAsset(asset: LibraryAsset, plan: ScenePlan, onlyPerson?: string): 
   const people = assetPeople(asset);
   if (required.length && !required.some((person) => people.includes(person))) return 0;
   const text = haystack(asset);
-  let score = required.length ? 50 : 0;
+  if (/close-up|close up|extreme close|face fills|cropped face|tight crop/.test(text)) return 0;
+  let score = required.length ? 40 : 0;
   for (const word of tokens(plan.search)) {
     if (namedPeople(word).length) continue;
-    if (text.includes(word)) score += 7;
+    if (text.includes(word)) score += 12;
   }
   if (asset.description) score += 4;
   if (asset.duration && asset.duration >= 2) score += 3;
@@ -157,14 +159,12 @@ async function planBatch(scenes: TimelineScene[], all: TimelineScene[]): Promise
     model: REASONING_MODEL,
     temperature: 0.3,
     system: [
-      "You choose who is on screen for one narration line. Name only the person that line is about.",
-      "A Panorama interview, a marriage, or 'her' after Diana is Princess Diana. Do not add King Charles or Prince William unless this line is about them.",
-      "Charles Spencer, Earl Spencer, is not King Charles. Never substitute a relative who shares a first name.",
-      "show is one canonical name, or two only when the line is about both. speaker can differ from show.",
-      "Raw clips should land near half of all scenes, inside 40 to 60 percent, and only when that subject has footage. Thin footage means a still is correct. Rich footage should be preferred.",
-      "Do not bunch clips at the start or in a repeating clip-image pattern. Mix them.",
-      "A clip may be used at most twice, and the second use must be at least 8 minutes later. Do not plan a fixed interval.",
-      "prefer is clip, image, or either. search is a short library query.",
+      "Decide the exact shot for one narration line. show is who. search is the specific picture, not a vague name.",
+      "Resolve she and her from the previous lines. Anne telling William what Diana wanted is Anne speaking, unless the line is the memory itself.",
+      "Match the event. A secret kept: that person speaking. A death or never lived to see it: the death or the news, not a plain portrait. Becoming king or heir: a formal ceremony. An interview: that person speaking in the interview, medium shot. Two people together only when the line is about both.",
+      "Do not use a toddler when the line is about an older child or an adult memory. Do not use a face cropped in half or an extreme close-up. Charles Spencer is not King Charles.",
+      "Prefer a clip for speaking, ceremony, or an event. Use a still when a clip would repeat or the moment is a photograph. Never plan more than two clip scenes in a row.",
+      "The whole video may use at most 120 different clips. Each clip at most twice, second use at least 8 minutes later.",
       'Return JSON: {"scenes":[{"sceneId":"","speaker":"","show":"","prefer":"clip","search":""}]}',
     ].join(" "),
     user: JSON.stringify({ scenes: payload }),
@@ -272,6 +272,9 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
 
     const assets = await loadRoyalLibraryAssets();
     const placements: Placement[] = [];
+    const uniqueClips = new Set<string>();
+    const withinClipCap = (asset: LibraryAsset) =>
+      !isClipAsset(asset) || uniqueClips.has(asset.assetId) || uniqueClips.size < MAX_UNIQUE_CLIPS;
     const recentClips: boolean[] = [];
     let placed = 0;
     let clipCount = 0;
@@ -286,6 +289,7 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
     const ranked = (plan: ScenePlan, clip: boolean, targetSec?: number, onlyPerson?: string) =>
       assets
         .filter((asset) => (clip ? isClipAsset(asset) : isUsableStill(asset)))
+        .filter((asset) => withinClipCap(asset))
         .filter((asset) => !clip || targetSec === undefined || covers(asset, targetSec))
         .map((asset) => ({ asset, score: scoreAsset(asset, plan, onlyPerson) }))
         .filter((item) => item.score > 0)
@@ -296,8 +300,11 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
       const plan = plans[index];
       const mustFollowWithClip = forceNextClip;
       forceNextClip = false;
-      const longScene = scene.duration > 5;
-      const preferClip = wantClip(plan.prefer, placed, clipCount, recentClips, mustFollowWithClip || longScene);
+      const clipStreak = recentClips.length >= 2 && recentClips.slice(-2).every(Boolean);
+      const longScene = scene.duration > 5 && !clipStreak && uniqueClips.size <= MAX_UNIQUE_CLIPS - 2;
+      const preferClip =
+        !clipStreak &&
+        wantClip(plan.prefer, placed, clipCount, recentClips, mustFollowWithClip || longScene);
       let chosen: { asset: LibraryAsset; score: number } | undefined;
       let second: { asset: LibraryAsset; score: number } | undefined;
 
@@ -346,6 +353,7 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
         const half = scene.duration / 2;
         const pool = assets
           .filter((asset) => isClipAsset(asset) && (asset.duration || 0) > 0.4)
+          .filter((asset) => withinClipCap(asset))
           .filter((asset) => canPlace(asset, scene.startTime, placements))
           .map((asset) => ({
             asset,
@@ -358,6 +366,7 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
             ? pool
             : assets
                 .filter((asset) => isClipAsset(asset) && (asset.duration || 0) > 0.4)
+                .filter((asset) => withinClipCap(asset))
                 .filter((asset) => canPlace(asset, scene.startTime, placements))
                 .map((asset) => ({
                   asset,
@@ -389,6 +398,7 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
         recentClips.push(false);
       } else {
         const clip = isClipAsset(chosen.asset);
+        if (clip) uniqueClips.add(chosen.asset.assetId);
         placements.push({
           at: scene.startTime,
           assetId: chosen.asset.assetId,
@@ -411,6 +421,7 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
         scene.viewerShouldSee = plan.show;
         const clipDuration = chosen.asset.duration || 0;
         if (second) {
+          if (isClipAsset(second.asset)) uniqueClips.add(second.asset.assetId);
           placements.push({
             at: scene.startTime,
             assetId: second.asset.assetId,
