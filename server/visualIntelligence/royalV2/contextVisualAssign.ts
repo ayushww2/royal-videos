@@ -8,7 +8,7 @@ import { jobDataFile, loadJob, readJson, saveJob, writeJson } from "../../storag
 import type { ApprovedVisual, JudgmentScores, TimelineScene } from "../../../shared/visualIntelligence.js";
 import type { LibraryAsset } from "../../library/types.js";
 import { loadRoyalLibraryAssets, royalAssetUrl } from "./library.js";
-import { canonicalRoyalPerson } from "./taxonomy.js";
+import { canonicalRoyalPerson, royalPersonMentions } from "./taxonomy.js";
 
 const REASONING_MODEL = process.env.ROYAL_REASONING_MODEL || "gpt-6.1-sol";
 const MIN_REUSE_GAP_SEC = 8 * 60;
@@ -60,14 +60,22 @@ function haystack(asset: LibraryAsset): string {
     .toLowerCase();
 }
 
-function scoreAsset(asset: LibraryAsset, plan: ScenePlan): number {
+function namedPeople(text: string): string[] {
+  return [...new Set(royalPersonMentions(text).map((mention) => mention.person))];
+}
+
+function assetPeople(asset: LibraryAsset): string[] {
+  return namedPeople(`${asset.person} ${asset.group || ""}`);
+}
+
+function scoreAsset(asset: LibraryAsset, plan: ScenePlan, onlyPerson?: string): number {
+  const required = onlyPerson ? [onlyPerson] : namedPeople(plan.show);
+  const people = assetPeople(asset);
+  if (required.length && !required.some((person) => people.includes(person))) return 0;
   const text = haystack(asset);
-  let score = 0;
-  const wanted = canonicalRoyalPerson(plan.show) || canonicalRoyalPerson(plan.speaker);
-  const assetPerson = canonicalRoyalPerson(asset.person);
-  if (wanted && assetPerson === wanted) score += 50;
-  else if (wanted && text.includes(wanted.toLowerCase())) score += 28;
-  for (const word of tokens(`${plan.show} ${plan.search}`)) {
+  let score = required.length ? 50 : 0;
+  for (const word of tokens(plan.search)) {
+    if (namedPeople(word).length) continue;
     if (text.includes(word)) score += 7;
   }
   if (asset.description) score += 4;
@@ -149,9 +157,10 @@ async function planBatch(scenes: TimelineScene[], all: TimelineScene[]): Promise
     model: REASONING_MODEL,
     temperature: 0.3,
     system: [
-      "You choose the visual for each narration line of a royal documentary.",
-      "You do not pick file names. You name who is on screen and whether a raw clip or a still photograph fits.",
-      "Separate the person speaking from the person being remembered. If Anne is telling William what Diana wanted, Anne is the speaker; show Diana only when the line is about seeing Diana.",
+      "You choose who is on screen for one narration line. Name only the person that line is about.",
+      "A Panorama interview, a marriage, or 'her' after Diana is Princess Diana. Do not add King Charles or Prince William unless this line is about them.",
+      "Charles Spencer, Earl Spencer, is not King Charles. Never substitute a relative who shares a first name.",
+      "show is one canonical name, or two only when the line is about both. speaker can differ from show.",
       "Raw clips should land near half of all scenes, inside 40 to 60 percent, and only when that subject has footage. Thin footage means a still is correct. Rich footage should be preferred.",
       "Do not bunch clips at the start or in a repeating clip-image pattern. Mix them.",
       "A clip may be used at most twice, and the second use must be at least 8 minutes later. Do not plan a fixed interval.",
@@ -274,11 +283,11 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
       return targetSec > 0 && length >= targetSec * 0.85 && length <= targetSec * 1.4;
     };
 
-    const ranked = (plan: ScenePlan, clip: boolean, targetSec?: number) =>
+    const ranked = (plan: ScenePlan, clip: boolean, targetSec?: number, onlyPerson?: string) =>
       assets
         .filter((asset) => (clip ? isClipAsset(asset) : isUsableStill(asset)))
         .filter((asset) => !clip || targetSec === undefined || covers(asset, targetSec))
-        .map((asset) => ({ asset, score: scoreAsset(asset, plan) }))
+        .map((asset) => ({ asset, score: scoreAsset(asset, plan, onlyPerson) }))
         .filter((item) => item.score > 0)
         .sort((a, b) => b.score - a.score);
 
@@ -303,10 +312,15 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
           tokens: shotTokens(lead),
         });
 
+      const required = namedPeople(plan.show);
+      const leadPerson = required[0];
+      const otherPerson = required[1] || required[0];
       const pairFor = (target: number) => {
-        const first = ranked(plan, true, target).find((item) => canPlace(item.asset, scene.startTime, placements));
+        const first = ranked(plan, true, target, leadPerson).find((item) =>
+          canPlace(item.asset, scene.startTime, placements)
+        );
         if (!first) return;
-        const next = ranked(plan, true, target).find(
+        const next = ranked(plan, true, target, otherPerson).find(
           (item) => differentShot(first.asset, item) && canPlace(item.asset, scene.startTime, placements)
         );
         if (!next) return;
@@ -316,7 +330,9 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
       if (longScene || preferClip) {
         const half = scene.duration / 2;
         if (!longScene) {
-          chosen = ranked(plan, true, scene.duration).find((item) => canPlace(item.asset, scene.startTime, placements));
+          chosen = ranked(plan, true, scene.duration, leadPerson).find((item) =>
+            canPlace(item.asset, scene.startTime, placements)
+          );
         }
         if (!chosen) {
           const pair = pairFor(half);
@@ -333,18 +349,32 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
           .filter((asset) => canPlace(asset, scene.startTime, placements))
           .map((asset) => ({
             asset,
-            score: scoreAsset(asset, plan) - Math.abs((asset.duration || 0) - half) * 8,
+            score: scoreAsset(asset, plan, leadPerson) - Math.abs((asset.duration || 0) - half) * 8,
           }))
           .sort((a, b) => b.score - a.score);
-        const first = pool[0];
-        const next = first && pool.find((item) => differentShot(first.asset, item));
+        const first = pool.find((item) => item.score > 0);
+        const secondPool =
+          otherPerson === leadPerson
+            ? pool
+            : assets
+                .filter((asset) => isClipAsset(asset) && (asset.duration || 0) > 0.4)
+                .filter((asset) => canPlace(asset, scene.startTime, placements))
+                .map((asset) => ({
+                  asset,
+                  score: scoreAsset(asset, plan, otherPerson) - Math.abs((asset.duration || 0) - half) * 8,
+                }))
+                .filter((item) => item.score > 0)
+                .sort((a, b) => b.score - a.score);
+        const next = first && secondPool.find((item) => differentShot(first.asset, item));
         if (first && next) {
           chosen = first;
           second = next;
         }
       }
       if (!chosen && !longScene && !mustFollowWithClip) {
-        chosen = ranked(plan, false).find((item) => canPlace(item.asset, scene.startTime, placements));
+        chosen = ranked(plan, false, undefined, leadPerson).find((item) =>
+          canPlace(item.asset, scene.startTime, placements)
+        );
       }
 
       scene.warnings = (scene.warnings || []).filter(
