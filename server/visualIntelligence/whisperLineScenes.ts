@@ -1,6 +1,6 @@
 import { jobDataFile, readJson, saveJob, writeJson } from "../storage.js";
 import { splitRoyalScriptIntoScenes } from "./royalV2/beats.js";
-import { timingsForWindows, type VoiceAlignmentReport } from "./voiceAlignment.js";
+import { spokenSpansForWindows, type VoiceAlignmentReport } from "./voiceAlignment.js";
 import type { JobRecord, TimelineScene } from "../../shared/visualIntelligence.js";
 
 /** Job ids that should stop after Whisper line timings and skip visual collection. */
@@ -29,10 +29,17 @@ export async function publishWhisperLineScenes(job: JobRecord): Promise<Timeline
     job.voiceoverDurationSec ||
     alignment.words[alignment.words.length - 1]?.end ||
     0;
-  const timings = timingsForWindows(lines, alignment.words, total);
+  const spans = spokenSpansForWindows(lines, alignment.words, total);
 
   const scenes: TimelineScene[] = lines.map((text, index) => {
-    const timing = timings[index];
+    const span = spans[index];
+    const startTime = Number(span.start.toFixed(3));
+    const endTime = Number(Math.max(span.start, span.end).toFixed(3));
+    const timing = {
+      startTime,
+      endTime,
+      duration: Number((endTime - startTime).toFixed(3)),
+    };
     const n = String(index + 1).padStart(3, "0");
     return {
       sceneId: `scene-${n}`,

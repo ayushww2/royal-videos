@@ -4,13 +4,19 @@ import { AppShell } from "../components/AppShell";
 import { ErrorState, LoadingState } from "../components/Badges";
 import {
   api,
-  formatTime,
   isVideoMediaUrl,
   searchEditorLibrary,
   swapTimelineVisual,
   type LibrarySearchHit,
 } from "../lib/api";
 import type { JobRecord, Scene } from "../lib/types";
+
+function formatExactSeconds(sec: number): string {
+  const safe = Math.max(0, sec);
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe - minutes * 60;
+  return `${minutes}:${seconds.toFixed(2).padStart(5, "0")}`;
+}
 
 type ReviewFilter = "all" | "review" | "approved" | "clips" | "images";
 type InspectorMode = "inspect" | "replace";
@@ -453,8 +459,8 @@ export function SceneReviewWorkspace() {
                     <div className="review-scene-meta">
                       <strong>{sceneSubject(scene)}</strong>
                       <span>
-                        {formatTime(scene.startTime)}–{formatTime(scene.endTime)} ·{" "}
-                        {scene.duration.toFixed(1)}s
+                        {formatExactSeconds(scene.startTime)}–{formatExactSeconds(scene.endTime)} ·{" "}
+                        {scene.duration.toFixed(2)}s
                       </span>
                     </div>
 
@@ -542,8 +548,8 @@ export function SceneReviewWorkspace() {
                     <div>
                       <dt>Timing</dt>
                       <dd>
-                        {formatTime(selected.startTime)}–{formatTime(selected.endTime)} ·{" "}
-                        {selected.duration.toFixed(1)}s
+                        {formatExactSeconds(selected.startTime)}–{formatExactSeconds(selected.endTime)} ·{" "}
+                        {selected.duration.toFixed(2)}s
                       </dd>
                     </div>
                     <div>
