@@ -94,7 +94,7 @@ function SceneMedia({
     return () => observer.disconnect();
   }, [eager, scene.previewUrl]);
 
-  const video = sceneIsVideo(scene);
+  const video = sceneIsVideo(scene) || Boolean(scene.secondPreviewUrl);
   const unavailable = !scene.previewUrl || failed;
 
   return (
@@ -111,6 +111,12 @@ function SceneMedia({
           <small>Replace this visual before approval</small>
         </div>
       ) : canLoad && video ? (
+        scene.secondPreviewUrl ? (
+          <div className="review-media-pair">
+            <video src={scene.previewUrl} muted playsInline preload="metadata" />
+            <video src={scene.secondPreviewUrl} muted playsInline preload="metadata" />
+          </div>
+        ) : (
         <video
           key={scene.previewUrl}
           src={scene.previewUrl}
@@ -125,6 +131,7 @@ function SceneMedia({
           }}
           onError={() => setFailed(true)}
         />
+        )
       ) : canLoad ? (
         <img
           src={scene.previewUrl}
@@ -135,7 +142,11 @@ function SceneMedia({
       ) : (
         <div className="review-media-loading">Loading preview…</div>
       )}
-      {!unavailable && <span className="review-media-kind">{video ? "Clip" : "Image"}</span>}
+      {!unavailable && (
+        <span className="review-media-kind">
+          {scene.secondPreviewUrl ? "2 clips" : video ? "Clip" : "Image"}
+        </span>
+      )}
     </div>
   );
 }

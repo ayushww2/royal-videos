@@ -269,9 +269,15 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
     let forceNextClip = false;
     const approved = new Map<string, ApprovedVisual>();
 
-    const ranked = (plan: ScenePlan, clip: boolean) =>
+    const covers = (asset: LibraryAsset, targetSec: number) => {
+      const length = asset.duration || 0;
+      return targetSec > 0 && length >= targetSec * 0.85 && length <= targetSec * 1.4;
+    };
+
+    const ranked = (plan: ScenePlan, clip: boolean, targetSec?: number) =>
       assets
         .filter((asset) => (clip ? isClipAsset(asset) : isUsableStill(asset)))
+        .filter((asset) => !clip || targetSec === undefined || covers(asset, targetSec))
         .map((asset) => ({ asset, score: scoreAsset(asset, plan) }))
         .filter((item) => item.score > 0)
         .sort((a, b) => b.score - a.score);
@@ -281,27 +287,68 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
       const plan = plans[index];
       const mustFollowWithClip = forceNextClip;
       forceNextClip = false;
-      const preferClip = wantClip(plan.prefer, placed, clipCount, recentClips, mustFollowWithClip);
-      const order = preferClip ? [true, false] : [false, true];
+      const longScene = scene.duration > 5;
+      const preferClip = wantClip(plan.prefer, placed, clipCount, recentClips, mustFollowWithClip || longScene);
       let chosen: { asset: LibraryAsset; score: number } | undefined;
-      for (const clip of order) {
-        const pool = ranked(plan, clip);
-        chosen = pool.find((item) => canPlace(item.asset, scene.startTime, placements));
-        if (chosen) break;
+      let second: { asset: LibraryAsset; score: number } | undefined;
+
+      const differentShot = (lead: LibraryAsset, item: { asset: LibraryAsset }) =>
+        item.asset.assetId !== lead.assetId &&
+        !sameShot(item.asset, {
+          at: scene.startTime,
+          assetId: lead.assetId,
+          fileKey: fileKey(lead),
+          hash: lead.contentHash || "",
+          person: (canonicalRoyalPerson(lead.person) || lead.person || "").toLowerCase(),
+          tokens: shotTokens(lead),
+        });
+
+      const pairFor = (target: number) => {
+        const first = ranked(plan, true, target).find((item) => canPlace(item.asset, scene.startTime, placements));
+        if (!first) return;
+        const next = ranked(plan, true, target).find(
+          (item) => differentShot(first.asset, item) && canPlace(item.asset, scene.startTime, placements)
+        );
+        if (!next) return;
+        return { first, next };
+      };
+
+      if (longScene || preferClip) {
+        const half = scene.duration / 2;
+        if (!longScene) {
+          chosen = ranked(plan, true, scene.duration).find((item) => canPlace(item.asset, scene.startTime, placements));
+        }
+        if (!chosen) {
+          const pair = pairFor(half);
+          if (pair) {
+            chosen = pair.first;
+            second = pair.next;
+          }
+        }
       }
-      if (!chosen && mustFollowWithClip) {
-        const person = canonicalRoyalPerson(plan.show) || canonicalRoyalPerson(plan.speaker);
-        const personName = (person || "").toLowerCase();
-        chosen = assets
-          .filter((asset) => isClipAsset(asset))
-          .filter((asset) => !personName || haystack(asset).includes(personName) || canonicalRoyalPerson(asset.person) === person)
-          .map((asset) => ({ asset, score: scoreAsset(asset, plan) }))
-          .sort((a, b) => b.score - a.score)
-          .find((item) => canPlace(item.asset, scene.startTime, placements));
+      if (longScene && !chosen) {
+        const half = scene.duration / 2;
+        const pool = assets
+          .filter((asset) => isClipAsset(asset) && (asset.duration || 0) > 0.4)
+          .filter((asset) => canPlace(asset, scene.startTime, placements))
+          .map((asset) => ({
+            asset,
+            score: scoreAsset(asset, plan) - Math.abs((asset.duration || 0) - half) * 8,
+          }))
+          .sort((a, b) => b.score - a.score);
+        const first = pool[0];
+        const next = first && pool.find((item) => differentShot(first.asset, item));
+        if (first && next) {
+          chosen = first;
+          second = next;
+        }
+      }
+      if (!chosen && !longScene && !mustFollowWithClip) {
+        chosen = ranked(plan, false).find((item) => canPlace(item.asset, scene.startTime, placements));
       }
 
       scene.warnings = (scene.warnings || []).filter(
-        (warning) => !/No library asset|Hold the last frame|following clip/i.test(warning)
+        (warning) => !/No library asset|Hold the last frame|following clip|Two clips/i.test(warning)
       );
       if (!chosen) {
         scene.selectedVisualId = "";
@@ -323,6 +370,7 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
         approved.set(chosen.asset.assetId, toApproved(chosen.asset, plan, chosen.score));
         scene.selectedVisualId = chosen.asset.assetId;
         scene.approvedVisualId = chosen.asset.assetId;
+        scene.alternativeAssetIds = [];
         scene.source = clip ? "raw_footage" : "cached_approved";
         scene.rawFootageUsed = clip;
         scene.needsBetterVisual = false;
@@ -332,15 +380,30 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
         scene.confidence = Math.min(0.95, chosen.score / 100);
         scene.viewerShouldSee = plan.show;
         const clipDuration = chosen.asset.duration || 0;
-        const short = clip && clipDuration > 0.4 && clipDuration + 0.15 < scene.duration;
-        if (short) {
-          const hold = Number((scene.duration - clipDuration).toFixed(2));
-          scene.editorNotes = `Clip is ${clipDuration.toFixed(2)}s. Hold the last frame for ${hold.toFixed(2)}s. Next scene stays on a clip.`;
+        if (second) {
+          placements.push({
+            at: scene.startTime,
+            assetId: second.asset.assetId,
+            fileKey: fileKey(second.asset),
+            hash: second.asset.contentHash || "",
+            person: (canonicalRoyalPerson(second.asset.person) || second.asset.person || "").toLowerCase(),
+            tokens: shotTokens(second.asset),
+          });
+          approved.set(second.asset.assetId, toApproved(second.asset, plan, second.score));
+          scene.alternativeAssetIds = [second.asset.assetId];
+          const secondDuration = second.asset.duration || 0;
+          scene.editorNotes = `Two clips, ${clipDuration.toFixed(2)}s then ${secondDuration.toFixed(2)}s, for a ${scene.duration.toFixed(2)}s line.`;
           scene.warnings.push(scene.editorNotes);
-          // One handoff only, so a run of short clips does not become a solid block.
-          if (!mustFollowWithClip) forceNextClip = true;
         } else {
-          scene.editorNotes = plan.search;
+          const short = clip && clipDuration > 0.4 && clipDuration + 0.15 < scene.duration;
+          if (short) {
+            const hold = Number((scene.duration - clipDuration).toFixed(2));
+            scene.editorNotes = `Clip is ${clipDuration.toFixed(2)}s. Hold the last frame for ${hold.toFixed(2)}s. Next scene stays on a clip.`;
+            scene.warnings.push(scene.editorNotes);
+            if (!mustFollowWithClip) forceNextClip = true;
+          } else {
+            scene.editorNotes = plan.search;
+          }
         }
         if (mustFollowWithClip && !clip) {
           scene.warnings.push("Needed a following clip but none was available for this subject");

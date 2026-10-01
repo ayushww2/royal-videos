@@ -79,9 +79,15 @@ function toMediaUrl(filePathOrUrl?: string): string | undefined {
 
 function enrichScene(scene: TimelineScene, libraryById: Map<string, ApprovedVisual>) {
   const visual = libraryById.get(scene.approvedVisualId || scene.selectedVisualId);
+  const second = scene.alternativeAssetIds?.[0]
+    ? libraryById.get(scene.alternativeAssetIds[0])
+    : undefined;
   return {
     ...scene,
     previewUrl: toMediaUrl(visual?.filePathOrUrl) || toMediaUrl(visual?.thumbnail),
+    secondPreviewUrl: second
+      ? toMediaUrl(second.filePathOrUrl) || toMediaUrl(second.thumbnail)
+      : undefined,
     fromApprovedLibrary: Boolean(scene.approvedVisualId && !scene.fallbackUsed),
     libraryVisual: visual
       ? {
