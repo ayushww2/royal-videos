@@ -563,7 +563,8 @@ app.post("/api/jobs/:jobId/assign-context-visuals", async (req, res) => {
   if (contextVisualAssignRunning(job.jobId)) {
     return res.status(409).json({ error: "Visual assignment is already running" });
   }
-  void assignContextVisuals(job.jobId).catch((err) => {
+  const reusePlans = req.body?.reusePlans === true || req.query.reusePlans === "1";
+  void assignContextVisuals(job.jobId, { reusePlans }).catch((err) => {
     console.error("[context-visuals]", job.jobId, err);
   });
   res.status(202).json({

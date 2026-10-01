@@ -184,7 +184,7 @@ export function contextVisualAssignRunning(jobId: string): boolean {
   return running.has(jobId);
 }
 
-export async function assignContextVisuals(jobId: string): Promise<void> {
+export async function assignContextVisuals(jobId: string, options?: { reusePlans?: boolean }): Promise<void> {
   if (running.has(jobId)) return;
   running.add(jobId);
   const progressPath = jobDataFile("royal-context-visual-assign", jobId);
@@ -199,17 +199,29 @@ export async function assignContextVisuals(jobId: string): Promise<void> {
 
     await writeJson(progressPath, { jobId, status: "planning", done: 0, total: scenes.length });
     const plans: ScenePlan[] = [];
-    const batchSize = 16;
-    for (let offset = 0; offset < scenes.length; offset += batchSize) {
-      const batch = scenes.slice(offset, offset + batchSize);
-      plans.push(...(await planBatch(batch, scenes)));
-      await writeJson(progressPath, {
-        jobId,
-        status: "planning",
-        done: plans.length,
-        total: scenes.length,
-        model: REASONING_MODEL,
-      });
+    if (options?.reusePlans && scenes.some((scene) => scene.viewerShouldSee)) {
+      for (const scene of scenes) {
+        plans.push({
+          sceneId: scene.sceneId,
+          speaker: "",
+          show: scene.viewerShouldSee || scene.narrationText,
+          prefer: "either",
+          search: scene.narrationText,
+        });
+      }
+    } else {
+      const batchSize = 16;
+      for (let offset = 0; offset < scenes.length; offset += batchSize) {
+        const batch = scenes.slice(offset, offset + batchSize);
+        plans.push(...(await planBatch(batch, scenes)));
+        await writeJson(progressPath, {
+          jobId,
+          status: "planning",
+          done: plans.length,
+          total: scenes.length,
+          model: REASONING_MODEL,
+        });
+      }
     }
 
     const assets = await loadRoyalLibraryAssets();
@@ -273,7 +285,8 @@ export async function assignContextVisuals(jobId: string): Promise<void> {
           const hold = Number((scene.duration - clipDuration).toFixed(2));
           scene.editorNotes = `Clip is ${clipDuration.toFixed(2)}s. Hold the last frame for ${hold.toFixed(2)}s. Next scene stays on a clip.`;
           scene.warnings.push(scene.editorNotes);
-          forceNextClip = true;
+          // One handoff only, so a run of short clips does not become a solid block.
+          if (!mustFollowWithClip) forceNextClip = true;
         } else {
           scene.editorNotes = plan.search;
         }
