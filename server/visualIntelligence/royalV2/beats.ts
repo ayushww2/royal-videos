@@ -24,70 +24,23 @@ import type {
 } from "../../../shared/visualIntelligence.js";
 import { WORDS_PER_SECOND } from "../../../shared/visualIntelligence.js";
 
-function splitMeaningWindows(script: string, count: number): string[] {
-  const clean = script.replace(/\s+/g, " ").trim();
+/**
+ * Royal scripts are editor-authored as one complete narration line per scene.
+ * Preserve those physical lines exactly so Scene Review always mirrors the
+ * submitted script. Sentence fallback keeps older single-paragraph jobs usable.
+ */
+export function splitRoyalScriptIntoScenes(script: string): string[] {
+  const physicalLines = script
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  if (physicalLines.length > 1) return physicalLines;
+
+  const clean = physicalLines[0] || script.replace(/\s+/g, " ").trim();
   if (!clean) return [""];
-  const allWords = clean.split(/\s+/);
-  const targetWords = Math.max(6, Math.min(11, Math.round(allWords.length / Math.max(1, count))));
-  const maxWords = targetWords + 2;
-  const sentences = clean.match(/[^.!?]+(?:[.!?]+["')\]]*|$)/g) || [clean];
-  const windows: string[] = [];
-
-  const pushSized = (input: string) => {
-    let words = input.trim().split(/\s+/).filter(Boolean);
-    while (words.length > maxWords) {
-      let end = targetWords;
-      const minEnd = Math.max(4, targetWords - 4);
-      const maxEnd = Math.min(words.length - 3, targetWords + 2);
-      for (let index = maxEnd; index >= minEnd; index--) {
-        if (/[,;:—–-]$/.test(words[index - 1] || "")) {
-          end = index;
-          break;
-        }
-      }
-      windows.push(words.slice(0, end).join(" "));
-      words = words.slice(end);
-    }
-    if (words.length) windows.push(words.join(" "));
-  };
-
-  for (const sentence of sentences) {
-    const rawClauses = sentence
-      .trim()
-      .split(/(?<=[,;:—–])\s+|\s+(?=(?:but|however|because|while|so|then)\b)/i)
-      .filter(Boolean);
-    const clauses: string[] = [];
-    let pending = "";
-    for (const clause of rawClauses) {
-      if (!pending) {
-        pending = clause;
-        continue;
-      }
-      const pendingWords = pending.split(/\s+/).length;
-      const clauseWords = clause.split(/\s+/).length;
-      const combinedWords = pendingWords + clauseWords;
-      if ((pendingWords < 5 || clauseWords < 3) && combinedWords <= maxWords + 6) {
-        pending = `${pending} ${clause}`;
-      } else {
-        clauses.push(pending);
-        pending = clause;
-      }
-    }
-    if (pending) clauses.push(pending);
-
-    for (const clause of clauses) {
-      const mentions = royalPersonMentions(clause);
-      if (mentions.length >= 3 && mentions[1].index >= 3) {
-        const lead = clause.slice(0, mentions[1].index).trim();
-        const relationship = clause.slice(mentions[1].index).trim();
-        if (lead.split(/\s+/).length >= 2) windows.push(lead);
-        pushSized(relationship);
-      } else {
-        pushSized(clause);
-      }
-    }
-  }
-  return windows.filter((value) => value.trim());
+  return (clean.match(/[^.!?]+(?:[.!?]+["')\]]*|$)/g) || [clean])
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
 }
 
 function desiredDuration(text: string, beatType: RoyalBeatType, importance: number, index: number): number {
@@ -209,7 +162,7 @@ Do not invent named people or places. Return JSON { beats: [...] }.`,
 
 /**
  * ContactBox AI pass: decide who/what to show per beat using royal narration rules.
- * Batched for ~3s cadence (~400 beats on a 20+ min VO).
+ * Batched so long line-authored scripts stay within model context limits.
  */
 async function refineBeatsWithAiPlan(
   job: JobRecord,
@@ -322,9 +275,8 @@ export async function createRoyalV2Beats(
   context: GlobalContextReport
 ): Promise<{ beats: VisualBeat[]; gptCallsUsed: number }> {
   const targetDuration = getJobTargetDurationSec(job);
-  // ~3s visual change cadence for documentary pacing (~440 beats on a 22 min VO).
-  const targetCount = Math.max(1, Math.round(targetDuration / 3));
-  const windows = splitMeaningWindows(job.script, targetCount);
+  // Contract: one submitted script line becomes one visual scene.
+  const windows = splitRoyalScriptIntoScenes(job.script);
   const titlePerson =
     royalPersonMentions(context.mainSubject || "")[0]?.person ||
     royalPersonMentions(job.title)[0]?.person ||
