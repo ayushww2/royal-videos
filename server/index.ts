@@ -553,6 +553,25 @@ app.post(
   }
 );
 
+/** Write one scene per script line from the saved Whisper alignment. No visuals. */
+app.post("/api/jobs/:jobId/whisper-line-scenes", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  try {
+    const { publishWhisperLineScenes } = await import("./visualIntelligence/whisperLineScenes.js");
+    const scenes = await publishWhisperLineScenes(job);
+    res.json({
+      ok: true,
+      lineCount: scenes.length,
+      status: "scene_review_ready",
+      first: scenes[0],
+      last: scenes[scenes.length - 1],
+    });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 app.post("/api/jobs/:jobId/retry", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
