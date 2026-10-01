@@ -3,10 +3,10 @@ import { jobDataFile, loadJob, readJson, writeJson } from "../storage.js";
 import { config } from "../config.js";
 import type { ApprovedVisual, JobRecord, TimelineScene } from "../../shared/visualIntelligence.js";
 import type { LibraryAsset } from "../library/types.js";
-import { replaceRoyalV2Scene } from "./royalV2/assignment.js";
 import {
   loadRoyalLibraryAssets,
   royalAssetPreviewUrl,
+  royalAssetUrl,
   searchRoyalLibrary,
 } from "./royalV2/library.js";
 import type { EffectTimelineEvent, SelectedPresetId } from "./effectPlanner.js";
@@ -379,12 +379,6 @@ export async function swapSceneVisual(params: {
   const scene = scenes.find((s) => s.sceneId === params.sceneId);
   if (!scene) throw new Error(`Scene not found: ${params.sceneId}`);
 
-  const beatReport = await readJson<{ beats: Array<{ beatId: string } & Record<string, unknown>> }>(
-    jobDataFile("royal-v2-visual-plan", params.jobId)
-  );
-  const beat = (beatReport?.beats || []).find((b) => b.beatId === scene.beatId);
-  if (!beat) throw new Error("Beat not found for scene");
-
   const assets = await loadRoyalLibraryAssets();
   const asset = assets.find((a) => a.assetId === params.assetId);
   if (!asset) throw new Error(`Library asset not found: ${params.assetId}`);
@@ -393,27 +387,59 @@ export async function swapSceneVisual(params: {
     jobDataFile("visual-intelligence-approved-library", params.jobId)
   );
   const approved = libraryReport?.approved || [];
-
-  const replacement = await replaceRoyalV2Scene(
-    scene,
-    beat as never,
-    asset,
-    assets
-  );
-  replacement.scene = {
-    ...replacement.scene,
-    sceneId: scene.sceneId,
-    effects: scene.effects,
-    markForAiRevise: scene.markForAiRevise,
-    editorNotes: scene.editorNotes,
+  const clip = asset.mediaType === "raw_footage" || asset.mediaType === "trusted_clip";
+  const fileUrl = royalAssetUrl(asset);
+  const thumbUrl = royalAssetUrl({ ...asset, r2Key: asset.thumbKey || asset.r2Key });
+  const replacementScene: TimelineScene = {
+    ...scene,
+    selectedVisualId: asset.assetId,
+    approvedVisualId: asset.assetId,
+    alternativeAssetIds: [],
+    source: clip ? "raw_footage" : "cached_approved",
+    rawFootageUsed: clip,
+    needsBetterVisual: false,
+    mainPerson: asset.person,
+    viewerShouldSee: asset.description || asset.person,
+    reasonSelected: `Editor replaced this scene with ${asset.person}. ${asset.description || asset.title || ""}`.trim(),
+    editorNotes: asset.description || scene.editorNotes,
+  };
+  const replacementApproved: ApprovedVisual = {
+    approvedVisualId: asset.assetId,
+    source: clip ? "raw_footage" : "cached_approved",
+    filePathOrUrl: fileUrl,
+    thumbnail: thumbUrl,
+    matchedPeople: [asset.person].filter(Boolean),
+    matchedCompanies: [],
+    matchedPlaces: [],
+    matchedEvents: [],
+    matchedDocuments: [],
+    matchedObjects: [],
+    allowedBeatIds: [scene.beatId],
+    bestUseCase: asset.description || asset.title || asset.person,
+    confidenceScores: {
+      entityMatch: 80,
+      sceneMatch: 80,
+      topicRelevance: 80,
+      eventPlaceYearRelevance: 70,
+      visualQuality: 80,
+      cropSafety16x9: 80,
+      sourceReliability: 80,
+      wrongEntityRisk: 10,
+      watermarkTextRisk: 10,
+      reusePotential: 40,
+    },
+    reuseLimit: 2,
+    durationRecommendation: asset.duration,
+    warnings: [],
+    candidateId: asset.assetId,
+    libraryAssetId: asset.assetId,
+    mediaType: clip ? "raw_footage" : "image",
   };
 
-  const nextScenes = scenes.map((s) =>
-    s.sceneId === params.sceneId ? replacement.scene : s
-  );
+  const nextScenes = scenes.map((s) => (s.sceneId === params.sceneId ? replacementScene : s));
   const nextApproved = [
-    ...approved.filter((v) => v.approvedVisualId !== replacement.approved.approvedVisualId),
-    replacement.approved,
+    ...approved.filter((v) => v.approvedVisualId !== replacementApproved.approvedVisualId),
+    replacementApproved,
   ];
   await writeJson(jobDataFile("visual-intelligence-approved-library", params.jobId), {
     jobId: params.jobId,
@@ -422,7 +448,7 @@ export async function swapSceneVisual(params: {
     updatedAt: new Date().toISOString(),
   });
   await persistScenes(params.jobId, nextScenes);
-  return { scene: replacement.scene, approved: replacement.approved };
+  return { scene: replacementScene, approved: replacementApproved };
 }
 
 export async function searchLibraryForEditor(query: string, limit = 20): Promise<LibraryAsset[]> {
