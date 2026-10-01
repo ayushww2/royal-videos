@@ -25,6 +25,7 @@ export type LibrarySearchHit = {
   category?: string;
   description?: string;
   previewUrl?: string;
+  clipUrl?: string;
 };
 
 export type TimelineScenePatch = {

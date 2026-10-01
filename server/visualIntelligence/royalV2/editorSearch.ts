@@ -14,6 +14,7 @@ import {
 import {
   loadRoyalLibraryAssets,
   royalAssetPreviewUrl,
+  royalAssetUrl,
   searchRoyalLibrary,
 } from "./library.js";
 
@@ -27,6 +28,7 @@ export type EditorLibraryHit = {
   description?: string;
   title?: string;
   previewUrl: string;
+  clipUrl?: string;
   width?: number;
   height?: number;
   duration?: number;
@@ -97,7 +99,13 @@ function toLibraryHit(asset: LibraryAsset): EditorLibraryHit {
     categories: asset.categories || [],
     description: asset.description,
     title: asset.title,
-    previewUrl: royalAssetPreviewUrl(asset),
+    previewUrl: asset.thumbKey
+      ? royalAssetUrl({ ...asset, r2Key: asset.thumbKey })
+      : royalAssetPreviewUrl(asset),
+    clipUrl:
+      asset.mediaType === "raw_footage" || asset.mediaType === "trusted_clip"
+        ? royalAssetUrl(asset)
+        : undefined,
     width: asset.width,
     height: asset.height,
     duration: asset.duration,

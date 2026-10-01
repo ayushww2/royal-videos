@@ -696,15 +696,37 @@ export function SceneReviewWorkspace() {
                       disabled={busySceneId === selected.sceneId}
                       onClick={() => void chooseVisual(asset.assetId)}
                     >
-                      <div className="review-library-thumb">
-                        {asset.previewUrl ? (
-                          asset.mediaType === "raw_footage" ||
-                          asset.mediaType === "trusted_clip" ||
-                          isVideoMediaUrl(asset.previewUrl) ? (
-                            <video src={asset.previewUrl} muted playsInline preload="metadata" />
-                          ) : (
-                            <img src={asset.previewUrl} alt="" loading="lazy" />
-                          )
+                      <div
+                        className="review-library-thumb"
+                        onMouseEnter={(event) => {
+                          const video = event.currentTarget.querySelector("video");
+                          if (!video) return;
+                          video.preload = "auto";
+                          if (video.readyState < 1) video.load();
+                          void video.play().catch(() => undefined);
+                        }}
+                        onMouseLeave={(event) => {
+                          const video = event.currentTarget.querySelector("video");
+                          if (!video) return;
+                          video.pause();
+                          video.currentTime = 0.05;
+                        }}
+                      >
+                        {asset.clipUrl ? (
+                          <video
+                            src={asset.clipUrl}
+                            poster={asset.previewUrl}
+                            muted
+                            playsInline
+                            preload="none"
+                            onLoadedMetadata={(event) => {
+                              if (event.currentTarget.duration > 0.08) {
+                                event.currentTarget.currentTime = 0.05;
+                              }
+                            }}
+                          />
+                        ) : asset.previewUrl ? (
+                          <img src={asset.previewUrl} alt="" />
                         ) : (
                           <span>No preview</span>
                         )}
