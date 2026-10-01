@@ -696,40 +696,25 @@ export function SceneReviewWorkspace() {
                       disabled={busySceneId === selected.sceneId}
                       onClick={() => void chooseVisual(asset.assetId)}
                     >
-                      <div
-                        className="review-library-thumb"
-                        onMouseEnter={(event) => {
-                          const video = event.currentTarget.querySelector("video");
-                          if (!video) return;
-                          video.preload = "auto";
-                          if (video.readyState < 1) video.load();
-                          void video.play().catch(() => undefined);
-                        }}
-                        onMouseLeave={(event) => {
-                          const video = event.currentTarget.querySelector("video");
-                          if (!video) return;
-                          video.pause();
-                          video.currentTime = 0.05;
-                        }}
-                      >
-                        {asset.clipUrl ? (
+                      <div className="review-library-thumb">
+                        {asset.previewUrl && !isVideoMediaUrl(asset.previewUrl) ? (
+                          <img src={asset.previewUrl} alt="" loading="lazy" />
+                        ) : asset.clipUrl ? (
                           <video
-                            src={asset.clipUrl}
-                            poster={asset.previewUrl}
+                            src={`${asset.clipUrl}#t=0.1`}
                             muted
                             playsInline
-                            preload="none"
+                            preload="metadata"
                             onLoadedMetadata={(event) => {
-                              if (event.currentTarget.duration > 0.08) {
-                                event.currentTarget.currentTime = 0.05;
-                              }
+                              event.currentTarget.currentTime = 0.1;
                             }}
                           />
-                        ) : asset.previewUrl ? (
-                          <img src={asset.previewUrl} alt="" />
                         ) : (
                           <span>No preview</span>
                         )}
+                        {asset.duration ? (
+                          <em className="review-library-duration">{asset.duration.toFixed(1)}s</em>
+                        ) : null}
                       </div>
                       <strong>{asset.person || asset.category || "Royal library visual"}</strong>
                       <small>{asset.description || asset.mediaType || "Library asset"}</small>
