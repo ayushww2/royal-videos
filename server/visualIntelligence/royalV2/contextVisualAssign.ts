@@ -114,7 +114,10 @@ function lockPlan(scene: TimelineScene, previousLines: string[], plan: ScenePlan
   const death = /never lived|died|death|killed|crash|car accident/i.test(line);
   const ceremony = /king|crowned|coronation|heir|throne/i.test(line);
   const speaking = /told|said|asked|warning|silence|remembered|interview/i.test(line);
-  const show = people.length ? people.join(" and ") : plan.show;
+  if (!people.length) {
+    people = recentPeople.filter((person) => person !== "British Royal Family").slice(0, 2);
+  }
+  const show = people.length ? people.join(" and ") : line.slice(0, 140);
   let search = line;
   if (panorama) search = `Princess Diana seated speaking in the 1995 Martin Bashir Panorama interview medium shot ${line}`;
   else if (death) search = `Diana death Paris car crash news headline ${line}`;
@@ -427,7 +430,7 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
           second = next;
         }
       }
-      if (!chosen && !longScene && !mustFollowWithClip) {
+      if (!chosen && !mustFollowWithClip) {
         chosen = ranked(plan, false, undefined, leadPerson).find((item) =>
           canPlace(item.asset, scene.startTime, placements)
         );
