@@ -138,12 +138,23 @@ export function searchEditorWeb(jobId: string, query: string) {
   );
 }
 
-export function applyWebStill(jobId: string, sceneId: string, imageUrl: string, title: string) {
+export function applyWebStill(
+  jobId: string,
+  sceneId: string,
+  imageUrl: string,
+  title: string,
+  thumbnailUrl?: string
+) {
   return api<{ ok: boolean; scene: Scene }>(`/api/jobs/${jobId}/timeline/apply-web-still`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sceneId, imageUrl, title }),
+    body: JSON.stringify({ sceneId, imageUrl, thumbnailUrl, title }),
   });
+}
+
+export function webImagePreviewUrl(jobId: string, imageUrl?: string): string {
+  if (!imageUrl) return "";
+  return `/api/jobs/${jobId}/editor/web-image?url=${encodeURIComponent(imageUrl)}`;
 }
 
 export function searchEditorLibrary(

@@ -457,33 +457,63 @@ export async function applyWebStill(params: {
   jobId: string;
   sceneId: string;
   imageUrl: string;
+  thumbnailUrl?: string;
   title?: string;
 }): Promise<{ scene: TimelineScene; approved: ApprovedVisual }> {
   const job = await loadJob(params.jobId);
   if (!job) throw new Error("Job not found");
   if (job.timelineLock?.locked) throw new Error("Timeline is locked. Unlock before swapping visuals.");
-  const imageUrl = String(params.imageUrl || "").trim();
-  let parsed: URL;
-  try {
-    parsed = new URL(imageUrl);
-  } catch {
-    throw new Error("Image URL is not valid");
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new Error("Image URL is not valid");
+  const candidates = [params.imageUrl, params.thumbnailUrl]
+    .map((value) => String(value || "").trim())
+    .filter((value, index, all) => {
+      if (!value || all.indexOf(value) !== index) return false;
+      try {
+        const parsed = new URL(value);
+        return parsed.protocol === "https:" || parsed.protocol === "http:";
+      } catch {
+        return false;
+      }
+    });
+  if (!candidates.length) throw new Error("Image URL is not valid");
 
   const scenes = await loadTimelineScenes(params.jobId);
   const scene = scenes.find((s) => s.sceneId === params.sceneId);
   if (!scene) throw new Error(`Scene not found: ${params.sceneId}`);
 
-  const response = await fetch(imageUrl, {
-    headers: { "User-Agent": "Mozilla/5.0", Accept: "image/*,*/*" },
-    signal: AbortSignal.timeout(20000),
-    redirect: "follow",
-  });
-  if (!response.ok) throw new Error(`Could not download that image (${response.status})`);
-  const type = response.headers.get("content-type") || "";
-  if (!type.startsWith("image/")) throw new Error("That result is not an image file");
-  const bytes = Buffer.from(await response.arrayBuffer());
+  let response: Response | undefined;
+  let type = "";
+  let bytes = Buffer.alloc(0);
+  let lastError = "Could not download that image";
+  for (const imageUrl of candidates) {
+    try {
+      const attempt = await fetch(imageUrl, {
+        headers: { "User-Agent": "Mozilla/5.0", Accept: "image/*,*/*" },
+        signal: AbortSignal.timeout(20000),
+        redirect: "follow",
+      });
+      if (!attempt.ok) {
+        lastError = `Could not download that image (${attempt.status})`;
+        continue;
+      }
+      const attemptType = attempt.headers.get("content-type") || "";
+      if (!attemptType.startsWith("image/")) {
+        lastError = "That result is not an image file";
+        continue;
+      }
+      const attemptBytes = Buffer.from(await attempt.arrayBuffer());
+      if (attemptBytes.length < 1000 || attemptBytes.length > 15_000_000) {
+        lastError = "That image is empty or too large";
+        continue;
+      }
+      response = attempt;
+      type = attemptType;
+      bytes = attemptBytes;
+      break;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+  }
+  if (!response) throw new Error(lastError);
   if (bytes.length < 1000 || bytes.length > 15_000_000) throw new Error("That image is empty or too large");
   const ext = type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg";
   const assetId = `web-${randomUUID()}`;

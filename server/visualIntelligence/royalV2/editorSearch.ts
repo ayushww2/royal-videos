@@ -319,7 +319,7 @@ export function registerEditorSearchRoutes(app: Express): void {
       const q = String(req.query.q || "").trim();
       if (!q) return res.status(400).json({ error: "q is required" });
 
-      const result = await searchWebImagesForEditor(q, Number(req.query.limit || 8));
+      const result = await searchWebImagesForEditor(q, Number(req.query.limit || 16));
       res.json({ jobId: job.jobId, ...result });
     } catch (err) {
       if (err instanceof EditorWebSearchUnavailableError) {
@@ -332,6 +332,36 @@ export function registerEditorSearchRoutes(app: Express): void {
       const message = err instanceof Error ? err.message : String(err);
       const status = message.includes("required") ? 400 : 500;
       res.status(status).json({ error: message });
+    }
+  });
+
+  app.get("/api/jobs/:jobId/editor/web-image", async (req, res) => {
+    try {
+      const target = String(req.query.url || "");
+      let parsed: URL;
+      try {
+        parsed = new URL(target);
+      } catch {
+        return res.status(400).json({ error: "url is required" });
+      }
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+        return res.status(400).json({ error: "url is required" });
+      }
+      const response = await fetch(target, {
+        headers: { "User-Agent": "Mozilla/5.0", Accept: "image/*,*/*" },
+        signal: AbortSignal.timeout(15000),
+        redirect: "follow",
+      });
+      if (!response.ok) return res.status(502).json({ error: "Image could not be loaded" });
+      const type = response.headers.get("content-type") || "image/jpeg";
+      if (!type.startsWith("image/")) return res.status(415).json({ error: "Not an image" });
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (!bytes.length || bytes.length > 8_000_000) return res.status(413).json({ error: "Image is too large" });
+      res.setHeader("Content-Type", type);
+      res.setHeader("Cache-Control", "private, max-age=3600");
+      res.send(bytes);
+    } catch (err) {
+      res.status(502).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
 

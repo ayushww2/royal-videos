@@ -9,6 +9,7 @@ import {
   searchEditorLibrary,
   searchEditorWeb,
   swapTimelineVisual,
+  webImagePreviewUrl,
   type LibrarySearchHit,
   type WebImageHit,
 } from "../lib/api";
@@ -263,8 +264,8 @@ export function SceneReviewWorkspace() {
     setMessage("");
     if (mode === "replace") {
       setLibraryHits([]);
-      setLibraryQuery(scene.viewerShouldSee || scene.mainPerson || "");
-      setReplacePerson(scene.mainPerson || scene.viewerShouldSee || "");
+      setLibraryQuery(scene.narrationText || scene.viewerShouldSee || "");
+      setReplacePerson(REPLACE_PEOPLE.find((person) => (scene.mainPerson || "").includes(person)) || "");
       setReplaceMedia(scene.rawFootageUsed ? "raw_footage" : "any");
     }
   }
@@ -346,7 +347,7 @@ export function SceneReviewWorkspace() {
     setBusySceneId(selected.sceneId);
     setError("");
     try {
-      await applyWebStill(jobId, selected.sceneId, hit.url, hit.title);
+      await applyWebStill(jobId, selected.sceneId, hit.url, hit.title, hit.thumbnail);
       await load();
       setMessage("Google image applied to this scene.");
       setInspectorMode("inspect");
@@ -682,7 +683,7 @@ export function SceneReviewWorkspace() {
                     onKeyDown={(event) => {
                       if (event.key === "Enter") void runLibrarySearch();
                     }}
-                    placeholder="Search the Royal library"
+                    placeholder={replaceSource === "google" ? "Search Google images" : "Search the Royal library"}
                     autoFocus
                   />
                   <button
@@ -704,6 +705,7 @@ export function SceneReviewWorkspace() {
                         setReplaceSource(source);
                         setLibraryHits([]);
                         setWebHits([]);
+                        if (source === "google") void runLibrarySearch(replacePerson, replaceMedia, libraryQuery, "google");
                       }}
                     >
                       <option value="library">Royal library</option>
@@ -766,7 +768,7 @@ export function SceneReviewWorkspace() {
                       >
                         <div className="review-library-thumb">
                           {hit.thumbnail || hit.url ? (
-                            <img src={hit.thumbnail || hit.url} alt="" loading="lazy" />
+                            <img src={webImagePreviewUrl(jobId || "", hit.thumbnail || hit.url)} alt="" loading="lazy" />
                           ) : (
                             <span>No preview</span>
                           )}

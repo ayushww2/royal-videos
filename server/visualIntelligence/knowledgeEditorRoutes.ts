@@ -74,8 +74,15 @@ export function registerKnowledgeEditorRoutes(app: Express): void {
       const sceneId = String(req.body?.sceneId || "");
       const imageUrl = String(req.body?.imageUrl || "");
       const title = String(req.body?.title || "");
+      const thumbnailUrl = String(req.body?.thumbnailUrl || "");
       if (!sceneId || !imageUrl) return res.status(400).json({ error: "sceneId and imageUrl required" });
-      const result = await applyWebStill({ jobId: req.params.jobId, sceneId, imageUrl, title });
+      const result = await applyWebStill({
+        jobId: req.params.jobId,
+        sceneId,
+        imageUrl,
+        thumbnailUrl,
+        title,
+      });
       const payload = await loadTimelineForEditor(req.params.jobId);
       const scene = payload.scenes.find((s) => s.sceneId === sceneId) || result.scene;
       res.json({ ok: true, scene, approved: result.approved, scenes: payload.scenes });
