@@ -304,14 +304,18 @@ export function SceneReviewWorkspace() {
     }
   }
 
-  async function runLibrarySearch() {
-    if (!selected || (!libraryQuery.trim() && !replacePerson.trim())) return;
+  async function runLibrarySearch(
+    person = replacePerson,
+    media: "any" | "image" | "raw_footage" = replaceMedia,
+    query = libraryQuery
+  ) {
+    if (!selected || (!query.trim() && !person.trim())) return;
     setSearching(true);
     setError("");
     try {
-      const data = await searchEditorLibrary(jobId || "", libraryQuery.trim(), 24, {
-        person: replacePerson.trim() || undefined,
-        mediaType: replaceMedia === "any" ? undefined : replaceMedia,
+      const data = await searchEditorLibrary(jobId || "", person.trim() ? "" : query.trim(), 4000, {
+        person: person.trim() || undefined,
+        mediaType: media === "any" ? undefined : media,
       });
       setLibraryHits(data.assets || []);
     } catch (reason) {
@@ -661,7 +665,15 @@ export function SceneReviewWorkspace() {
                 <div className="review-search-filters">
                   <label>
                     Person
-                    <select value={replacePerson} onChange={(event) => setReplacePerson(event.target.value)}>
+                    <select
+                      value={replacePerson}
+                      onChange={(event) => {
+                        const person = event.target.value;
+                        setReplacePerson(person);
+                        setLibraryQuery("");
+                        void runLibrarySearch(person, replaceMedia, "");
+                      }}
+                    >
                       <option value="">Any person</option>
                       {REPLACE_PEOPLE.map((person) => (
                         <option key={person} value={person}>
@@ -674,9 +686,11 @@ export function SceneReviewWorkspace() {
                     Type
                     <select
                       value={replaceMedia}
-                      onChange={(event) =>
-                        setReplaceMedia(event.target.value as "any" | "image" | "raw_footage")
-                      }
+                      onChange={(event) => {
+                        const media = event.target.value as "any" | "image" | "raw_footage";
+                        setReplaceMedia(media);
+                        void runLibrarySearch(replacePerson, media, replacePerson.trim() ? "" : libraryQuery);
+                      }}
                     >
                       <option value="any">Images and raw clips</option>
                       <option value="image">Images only</option>
@@ -685,7 +699,9 @@ export function SceneReviewWorkspace() {
                   </label>
                 </div>
                 <p className="review-search-help">
-                  Choose the person and whether you want a still or a raw clip, then search.
+                  {replacePerson.trim()
+                    ? `${libraryHits.length} visuals for ${replacePerson}.`
+                    : "Choose the person and whether you want a still or a raw clip, then search."}
                 </p>
                 <div className="review-library-grid">
                   {libraryHits.map((asset) => (

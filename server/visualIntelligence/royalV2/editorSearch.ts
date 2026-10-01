@@ -125,7 +125,7 @@ export async function searchRoyalLibraryForEditor(
 ): Promise<{ count: number; assets: EditorLibraryHit[] }> {
   const q = String(options.q || "").trim();
   const person = String(options.person || "").trim();
-  const limit = clampLimit(options.limit, 20, 50);
+  const limit = clampLimit(options.limit, person ? 4000 : 20, person ? 4000 : 80);
   const mediaType =
     options.mediaType === "image" || options.mediaType === "raw_footage"
       ? options.mediaType
@@ -135,19 +135,30 @@ export async function searchRoyalLibraryForEditor(
     throw new Error("q or person is required");
   }
 
-  // When only person is set, browse that person's clips; otherwise text-search then filter.
+  // A chosen person returns that person's library. Text only sorts matches first.
   let assets: LibraryAsset[];
-  if (q) {
-    assets = await searchRoyalLibrary(q, { limit: Math.min(100, limit * 3) });
-    if (person) assets = assets.filter((a) => matchesPerson(a, person));
-    assets = assets.filter((a) => matchesMedia(a, mediaType)).slice(0, limit);
-  } else {
+  if (person) {
     const all = await loadRoyalLibraryAssets();
-    assets = all
+    const pool = all
       .filter((a) => matchesPerson(a, person))
-      .filter((a) => matchesMedia(a, mediaType))
-      .sort((a, b) => a.number - b.number)
-      .slice(0, limit);
+      .filter((a) => matchesMedia(a, mediaType));
+    const terms = q
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((word) => word.length > 2);
+    assets = pool
+      .map((asset) => {
+        const hay = `${asset.person} ${asset.title || ""} ${asset.description || ""} ${asset.category || ""}`.toLowerCase();
+        const score = terms.reduce((n, term) => n + (hay.includes(term) ? 1 : 0), 0);
+        return { asset, score };
+      })
+      .sort((a, b) => b.score - a.score || a.asset.number - b.asset.number)
+      .slice(0, limit)
+      .map((item) => item.asset);
+  } else {
+    assets = await searchRoyalLibrary(q, { limit });
+    assets = assets.filter((a) => matchesMedia(a, mediaType)).slice(0, limit);
   }
 
   return { count: assets.length, assets: assets.map(toLibraryHit) };
