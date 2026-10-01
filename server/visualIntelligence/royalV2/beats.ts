@@ -26,15 +26,24 @@ import { WORDS_PER_SECOND } from "../../../shared/visualIntelligence.js";
 
 /**
  * Royal scripts are editor-authored as one complete narration line per scene.
- * Preserve those physical lines exactly so Scene Review always mirrors the
- * submitted script. Sentence fallback keeps older single-paragraph jobs usable.
+ * Preserve those physical lines so Scene Review mirrors the submitted script.
+ * A period jammed against the next capital ("private.It") is split into scenes.
+ * Sentence fallback keeps older single-paragraph jobs usable.
  */
+/** Sentences pasted without a space or line break, like "private.It concerned". */
+function splitGluedSentences(line: string): string[] {
+  return line
+    .split(/(?<=[.!?])(?=[A-Z])/g)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 export function splitRoyalScriptIntoScenes(script: string): string[] {
   const physicalLines = script
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean);
-  if (physicalLines.length > 1) return physicalLines;
+  if (physicalLines.length > 1) return physicalLines.flatMap(splitGluedSentences);
 
   const clean = physicalLines[0] || script.replace(/\s+/g, " ").trim();
   if (!clean) return [""];
