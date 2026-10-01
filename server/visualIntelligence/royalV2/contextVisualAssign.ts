@@ -88,10 +88,47 @@ function wantClip(prefer: Prefer, placed: number, clips: number, recent: boolean
   return ratio < 0.5;
 }
 
-function canReuse(uses: number[], sceneStart: number): boolean {
-  if (uses.length >= MAX_USES) return false;
-  if (!uses.length) return true;
-  return sceneStart - uses[uses.length - 1] >= MIN_REUSE_GAP_SEC;
+type Placement = {
+  at: number;
+  assetId: string;
+  fileKey: string;
+  hash: string;
+  person: string;
+  tokens: string[];
+};
+
+function fileKey(asset: LibraryAsset): string {
+  return (asset.r2Key || asset.assetId).replace(/\.(mp4|mov|webm|jpe?g|png|webp)$/i, "");
+}
+
+function shotTokens(asset: LibraryAsset): string[] {
+  return [
+    ...new Set(
+      tokens(`${asset.person} ${asset.description || ""} ${asset.title || ""}`).filter(
+        (word) => word.length > 3 && !/^\d+$/.test(word)
+      )
+    ),
+  ];
+}
+
+/** Same file, or a different library id of a lookalike shot. */
+function sameShot(asset: LibraryAsset, prior: Placement): boolean {
+  if (prior.assetId === asset.assetId) return true;
+  if (prior.fileKey === fileKey(asset)) return true;
+  if (asset.contentHash && prior.hash === asset.contentHash) return true;
+  const person = (canonicalRoyalPerson(asset.person) || asset.person || "").toLowerCase();
+  if (!person || person !== prior.person) return false;
+  const current = shotTokens(asset);
+  let shared = 0;
+  const seen = new Set(prior.tokens);
+  for (const word of current) if (seen.has(word)) shared += 1;
+  return shared >= 5;
+}
+
+function canPlace(asset: LibraryAsset, sceneStart: number, placements: Placement[]): boolean {
+  const same = placements.filter((prior) => sameShot(asset, prior));
+  if (same.length >= MAX_USES) return false;
+  return same.every((prior) => sceneStart - prior.at >= MIN_REUSE_GAP_SEC);
 }
 
 async function planBatch(scenes: TimelineScene[], all: TimelineScene[]): Promise<ScenePlan[]> {
@@ -225,7 +262,7 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
     }
 
     const assets = await loadRoyalLibraryAssets();
-    const uses = new Map<string, number[]>();
+    const placements: Placement[] = [];
     const recentClips: boolean[] = [];
     let placed = 0;
     let clipCount = 0;
@@ -249,7 +286,7 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
       let chosen: { asset: LibraryAsset; score: number } | undefined;
       for (const clip of order) {
         const pool = ranked(plan, clip);
-        chosen = pool.find((item) => canReuse(uses.get(item.asset.assetId) || [], scene.startTime));
+        chosen = pool.find((item) => canPlace(item.asset, scene.startTime, placements));
         if (chosen) break;
       }
       if (!chosen && mustFollowWithClip) {
@@ -260,7 +297,7 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
           .filter((asset) => !personName || haystack(asset).includes(personName) || canonicalRoyalPerson(asset.person) === person)
           .map((asset) => ({ asset, score: scoreAsset(asset, plan) }))
           .sort((a, b) => b.score - a.score)
-          .find((item) => canReuse(uses.get(item.asset.assetId) || [], scene.startTime));
+          .find((item) => canPlace(item.asset, scene.startTime, placements));
       }
 
       scene.warnings = (scene.warnings || []).filter(
@@ -275,9 +312,14 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
         recentClips.push(false);
       } else {
         const clip = isClipAsset(chosen.asset);
-        const usedAt = uses.get(chosen.asset.assetId) || [];
-        usedAt.push(scene.startTime);
-        uses.set(chosen.asset.assetId, usedAt);
+        placements.push({
+          at: scene.startTime,
+          assetId: chosen.asset.assetId,
+          fileKey: fileKey(chosen.asset),
+          hash: chosen.asset.contentHash || "",
+          person: (canonicalRoyalPerson(chosen.asset.person) || chosen.asset.person || "").toLowerCase(),
+          tokens: shotTokens(chosen.asset),
+        });
         approved.set(chosen.asset.assetId, toApproved(chosen.asset, plan, chosen.score));
         scene.selectedVisualId = chosen.asset.assetId;
         scene.approvedVisualId = chosen.asset.assetId;
