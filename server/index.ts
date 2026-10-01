@@ -67,13 +67,16 @@ await ensureDirs();
 function toMediaUrl(filePathOrUrl?: string): string | undefined {
   if (!filePathOrUrl) return undefined;
   if (/^https?:\/\//i.test(filePathOrUrl)) return filePathOrUrl;
-  if (filePathOrUrl.startsWith("/")) return filePathOrUrl;
-  const normalized = path.resolve(filePathOrUrl);
+  if (filePathOrUrl.startsWith("/media/")) return filePathOrUrl;
   const storageRoot = path.resolve(config.storagePath);
-  if (normalized.startsWith(storageRoot)) {
+  const normalized = path.resolve(filePathOrUrl);
+  if (normalized === storageRoot || normalized.startsWith(`${storageRoot}${path.sep}`)) {
     const rel = normalized.slice(storageRoot.length).replace(/\\/g, "/").replace(/^\//, "");
-    return `/media/${rel}`;
+    return rel ? `/media/${rel}` : undefined;
   }
+  const stored = filePathOrUrl.replace(/\\/g, "/").match(/(?:^|\/)(jobs\/.+)$/i);
+  if (stored?.[1]) return `/media/${stored[1]}`;
+  if (filePathOrUrl.startsWith("/")) return filePathOrUrl;
   return undefined;
 }
 

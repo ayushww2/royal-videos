@@ -164,10 +164,7 @@ async function loadSfxByScene(
 
 function previewFromApproved(visual?: ApprovedVisual): string | undefined {
   if (!visual) return undefined;
-  const url = visual.thumbnail || visual.filePathOrUrl;
-  if (!url) return undefined;
-  if (/^https?:\/\//i.test(url) || url.startsWith("/")) return url;
-  return undefined;
+  return toEditorMediaUrl(visual.thumbnail) || toEditorMediaUrl(visual.filePathOrUrl);
 }
 
 export type TimelineApprovedAsset = {
@@ -523,6 +520,7 @@ export async function applyWebStill(params: {
   await fs.writeFile(absolute, bytes);
 
   const title = String(params.title || "Google image").slice(0, 180);
+  const publicUrl = `/media/${relative.split(path.sep).join("/")}`;
   const replacementScene: TimelineScene = {
     ...scene,
     selectedVisualId: assetId,
@@ -531,6 +529,7 @@ export async function applyWebStill(params: {
     source: "google_image",
     rawFootageUsed: false,
     needsBetterVisual: false,
+    warnings: (scene.warnings || []).filter((warning) => !/No visual/i.test(warning)),
     viewerShouldSee: title,
     reasonSelected: `Editor chose a Google image. ${title}`,
     editorNotes: title,
@@ -538,8 +537,8 @@ export async function applyWebStill(params: {
   const replacementApproved: ApprovedVisual = {
     approvedVisualId: assetId,
     source: "google_image",
-    filePathOrUrl: absolute,
-    thumbnail: absolute,
+    filePathOrUrl: publicUrl,
+    thumbnail: publicUrl,
     matchedPeople: [],
     matchedCompanies: [],
     matchedPlaces: [],
