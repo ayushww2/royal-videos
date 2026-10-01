@@ -69,6 +69,12 @@ function clampLimit(raw: unknown, fallback: number, max: number): number {
   return Math.max(1, Math.min(max, Math.floor(n)));
 }
 
+function matchesMedia(asset: LibraryAsset, mediaType?: "image" | "raw_footage"): boolean {
+  if (!mediaType) return true;
+  if (mediaType === "image") return asset.mediaType === "image";
+  return asset.mediaType === "raw_footage" || asset.mediaType === "trusted_clip";
+}
+
 function matchesPerson(asset: LibraryAsset, person: string): boolean {
   const raw = person.trim().toLowerCase();
   if (!raw) return true;
@@ -124,14 +130,14 @@ export async function searchRoyalLibraryForEditor(
   // When only person is set, browse that person's clips; otherwise text-search then filter.
   let assets: LibraryAsset[];
   if (q) {
-    assets = await searchRoyalLibrary(q, { mediaType, limit: Math.min(100, limit * 3) });
+    assets = await searchRoyalLibrary(q, { limit: Math.min(100, limit * 3) });
     if (person) assets = assets.filter((a) => matchesPerson(a, person));
-    assets = assets.slice(0, limit);
+    assets = assets.filter((a) => matchesMedia(a, mediaType)).slice(0, limit);
   } else {
     const all = await loadRoyalLibraryAssets();
     assets = all
       .filter((a) => matchesPerson(a, person))
-      .filter((a) => !mediaType || a.mediaType === mediaType)
+      .filter((a) => matchesMedia(a, mediaType))
       .sort((a, b) => a.number - b.number)
       .slice(0, limit);
   }

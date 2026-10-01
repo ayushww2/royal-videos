@@ -19,6 +19,23 @@ function formatExactSeconds(sec: number): string {
 }
 
 type ReviewFilter = "all" | "review" | "approved" | "clips" | "images";
+const REPLACE_PEOPLE = [
+  "Princess Anne",
+  "Princess Diana",
+  "King Charles",
+  "Queen Camilla",
+  "Prince William",
+  "Catherine, Princess of Wales",
+  "Prince Harry",
+  "Meghan, Duchess of Sussex",
+  "Charles Spencer",
+  "Prince George",
+  "Princess Charlotte",
+  "Prince Louis",
+  "Prince Andrew",
+  "Sarah Ferguson",
+];
+
 type InspectorMode = "inspect" | "replace";
 
 function sceneIsVideo(scene: Scene): boolean {
@@ -165,6 +182,8 @@ export function SceneReviewWorkspace() {
   const [busySceneId, setBusySceneId] = useState("");
   const [searching, setSearching] = useState(false);
   const [libraryQuery, setLibraryQuery] = useState("");
+  const [replacePerson, setReplacePerson] = useState("");
+  const [replaceMedia, setReplaceMedia] = useState<"any" | "image" | "raw_footage">("any");
   const [libraryHits, setLibraryHits] = useState<LibrarySearchHit[]>([]);
 
   async function load() {
@@ -237,6 +256,12 @@ export function SceneReviewWorkspace() {
     setInspectorMode(mode);
     setError("");
     setMessage("");
+    if (mode === "replace") {
+      setLibraryHits([]);
+      setLibraryQuery(scene.viewerShouldSee || scene.mainPerson || "");
+      setReplacePerson(scene.mainPerson || scene.viewerShouldSee || "");
+      setReplaceMedia(scene.rawFootageUsed ? "raw_footage" : "any");
+    }
   }
 
   function closeInspector() {
@@ -280,12 +305,13 @@ export function SceneReviewWorkspace() {
   }
 
   async function runLibrarySearch() {
-    if (!selected || !libraryQuery.trim()) return;
+    if (!selected || (!libraryQuery.trim() && !replacePerson.trim())) return;
     setSearching(true);
     setError("");
     try {
       const data = await searchEditorLibrary(jobId || "", libraryQuery.trim(), 24, {
-        person: selected.mainPerson,
+        person: replacePerson.trim() || undefined,
+        mediaType: replaceMedia === "any" ? undefined : replaceMedia,
       });
       setLibraryHits(data.assets || []);
     } catch (reason) {
@@ -589,7 +615,7 @@ export function SceneReviewWorkspace() {
                     <button
                       className="btn btn-secondary"
                       type="button"
-                      onClick={() => setInspectorMode("replace")}
+                      onClick={() => inspect(selected, "replace")}
                     >
                       Replace visual
                     </button>
@@ -626,14 +652,40 @@ export function SceneReviewWorkspace() {
                   <button
                     className="btn btn-primary"
                     type="button"
-                    disabled={searching || !libraryQuery.trim()}
+                    disabled={searching || (!libraryQuery.trim() && !replacePerson.trim())}
                     onClick={() => void runLibrarySearch()}
                   >
                     {searching ? "Searching…" : "Search"}
                   </button>
                 </div>
+                <div className="review-search-filters">
+                  <label>
+                    Person
+                    <select value={replacePerson} onChange={(event) => setReplacePerson(event.target.value)}>
+                      <option value="">Any person</option>
+                      {REPLACE_PEOPLE.map((person) => (
+                        <option key={person} value={person}>
+                          {person}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Type
+                    <select
+                      value={replaceMedia}
+                      onChange={(event) =>
+                        setReplaceMedia(event.target.value as "any" | "image" | "raw_footage")
+                      }
+                    >
+                      <option value="any">Images and raw clips</option>
+                      <option value="image">Images only</option>
+                      <option value="raw_footage">Raw clips only</option>
+                    </select>
+                  </label>
+                </div>
                 <p className="review-search-help">
-                  Search by person, event, place, action or emotion. Select a visual to replace this scene.
+                  Choose the person and whether you want a still or a raw clip, then search.
                 </p>
                 <div className="review-library-grid">
                   {libraryHits.map((asset) => (
