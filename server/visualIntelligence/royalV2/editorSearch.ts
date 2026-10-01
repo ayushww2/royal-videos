@@ -264,7 +264,7 @@ export async function searchWebImagesForEditor(
     throw new EditorWebSearchUnavailableError(cfg.missing);
   }
 
-  const hits = await searchGoogleImages(q, clampLimit(limit, 8, 20));
+  const hits = await searchGoogleImages(q, clampLimit(limit, 16, 20));
   return {
     count: hits.length,
     provider: "google_images",

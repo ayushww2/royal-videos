@@ -124,6 +124,28 @@ export function swapTimelineVisual(jobId: string, sceneId: string, assetId: stri
   );
 }
 
+export type WebImageHit = {
+  title: string;
+  url: string;
+  thumbnail?: string;
+  source?: string;
+};
+
+export function searchEditorWeb(jobId: string, query: string) {
+  const params = new URLSearchParams({ q: query.trim(), limit: "16" });
+  return api<{ count: number; hits: WebImageHit[]; configured?: boolean; error?: string }>(
+    `/api/jobs/${jobId}/editor/web-search?${params.toString()}`
+  );
+}
+
+export function applyWebStill(jobId: string, sceneId: string, imageUrl: string, title: string) {
+  return api<{ ok: boolean; scene: Scene }>(`/api/jobs/${jobId}/timeline/apply-web-still`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sceneId, imageUrl, title }),
+  });
+}
+
 export function searchEditorLibrary(
   jobId: string,
   query: string,

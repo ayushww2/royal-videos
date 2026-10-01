@@ -4,10 +4,13 @@ import { AppShell } from "../components/AppShell";
 import { ErrorState, LoadingState } from "../components/Badges";
 import {
   api,
+  applyWebStill,
   isVideoMediaUrl,
   searchEditorLibrary,
+  searchEditorWeb,
   swapTimelineVisual,
   type LibrarySearchHit,
+  type WebImageHit,
 } from "../lib/api";
 import type { JobRecord, Scene } from "../lib/types";
 
@@ -184,6 +187,8 @@ export function SceneReviewWorkspace() {
   const [libraryQuery, setLibraryQuery] = useState("");
   const [replacePerson, setReplacePerson] = useState("");
   const [replaceMedia, setReplaceMedia] = useState<"any" | "image" | "raw_footage">("any");
+  const [replaceSource, setReplaceSource] = useState<"library" | "google">("library");
+  const [webHits, setWebHits] = useState<WebImageHit[]>([]);
   const [libraryHits, setLibraryHits] = useState<LibrarySearchHit[]>([]);
 
   async function load() {
@@ -307,21 +312,48 @@ export function SceneReviewWorkspace() {
   async function runLibrarySearch(
     person = replacePerson,
     media: "any" | "image" | "raw_footage" = replaceMedia,
-    query = libraryQuery
+    query = libraryQuery,
+    source = replaceSource
   ) {
-    if (!selected || (!query.trim() && !person.trim())) return;
+    if (!selected) return;
+    if (source === "google" && !query.trim() && !person.trim()) return;
+    if (source === "library" && !query.trim() && !person.trim()) return;
     setSearching(true);
     setError("");
     try {
-      const data = await searchEditorLibrary(jobId || "", person.trim() ? "" : query.trim(), 4000, {
-        person: person.trim() || undefined,
-        mediaType: media === "any" ? undefined : media,
-      });
-      setLibraryHits(data.assets || []);
+      if (source === "google") {
+        const q = [person.trim(), query.trim()].filter(Boolean).join(" ");
+        const data = await searchEditorWeb(jobId || "", q);
+        setWebHits(data.hits || []);
+        setLibraryHits([]);
+      } else {
+        const data = await searchEditorLibrary(jobId || "", person.trim() ? "" : query.trim(), 4000, {
+          person: person.trim() || undefined,
+          mediaType: media === "any" ? undefined : media,
+        });
+        setLibraryHits(data.assets || []);
+        setWebHits([]);
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setSearching(false);
+    }
+  }
+
+  async function chooseWebStill(hit: WebImageHit) {
+    if (!selected || !jobId) return;
+    setBusySceneId(selected.sceneId);
+    setError("");
+    try {
+      await applyWebStill(jobId, selected.sceneId, hit.url, hit.title);
+      await load();
+      setMessage("Google image applied to this scene.");
+      setInspectorMode("inspect");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setBusySceneId("");
     }
   }
 
@@ -664,6 +696,21 @@ export function SceneReviewWorkspace() {
                 </div>
                 <div className="review-search-filters">
                   <label>
+                    Search in
+                    <select
+                      value={replaceSource}
+                      onChange={(event) => {
+                        const source = event.target.value as "library" | "google";
+                        setReplaceSource(source);
+                        setLibraryHits([]);
+                        setWebHits([]);
+                      }}
+                    >
+                      <option value="library">Royal library</option>
+                      <option value="google">Google images</option>
+                    </select>
+                  </label>
+                  <label>
                     Person
                     <select
                       value={replacePerson}
@@ -671,7 +718,7 @@ export function SceneReviewWorkspace() {
                         const person = event.target.value;
                         setReplacePerson(person);
                         setLibraryQuery("");
-                        void runLibrarySearch(person, replaceMedia, "");
+                        void runLibrarySearch(person, replaceMedia, libraryQuery, replaceSource);
                       }}
                     >
                       <option value="">Any person</option>
@@ -689,7 +736,7 @@ export function SceneReviewWorkspace() {
                       onChange={(event) => {
                         const media = event.target.value as "any" | "image" | "raw_footage";
                         setReplaceMedia(media);
-                        void runLibrarySearch(replacePerson, media, replacePerson.trim() ? "" : libraryQuery);
+                        void runLibrarySearch(replacePerson, media, libraryQuery, replaceSource);
                       }}
                     >
                       <option value="any">Images and raw clips</option>
@@ -699,12 +746,36 @@ export function SceneReviewWorkspace() {
                   </label>
                 </div>
                 <p className="review-search-help">
-                  {replacePerson.trim()
-                    ? `${libraryHits.length} visuals for ${replacePerson}.`
-                    : "Choose the person and whether you want a still or a raw clip, then search."}
+                  {replaceSource === "google"
+                    ? webHits.length
+                      ? `${webHits.length} Google images. Click one to use it on this scene.`
+                      : "Search Google images, then click a result to see it on this scene."
+                    : replacePerson.trim()
+                      ? `${libraryHits.length} visuals for ${replacePerson}.`
+                      : "Choose the person and whether you want a still or a raw clip, then search."}
                 </p>
                 <div className="review-library-grid">
-                  {libraryHits.map((asset) => (
+                  {replaceSource === "google" &&
+                    webHits.map((hit) => (
+                      <button
+                        key={hit.url}
+                        type="button"
+                        className="review-library-result"
+                        disabled={busySceneId === selected.sceneId}
+                        onClick={() => void chooseWebStill(hit)}
+                      >
+                        <div className="review-library-thumb">
+                          {hit.thumbnail || hit.url ? (
+                            <img src={hit.thumbnail || hit.url} alt="" loading="lazy" />
+                          ) : (
+                            <span>No preview</span>
+                          )}
+                        </div>
+                        <strong>{hit.title || "Google image"}</strong>
+                        <small>{hit.source || "Google"}</small>
+                      </button>
+                    ))}
+                  {replaceSource === "library" && libraryHits.map((asset) => (
                     <button
                       key={asset.assetId}
                       type="button"
@@ -736,7 +807,7 @@ export function SceneReviewWorkspace() {
                       <small>{asset.description || asset.mediaType || "Library asset"}</small>
                     </button>
                   ))}
-                  {!searching && libraryHits.length === 0 && (
+                  {!searching && libraryHits.length === 0 && webHits.length === 0 && (
                     <div className="review-library-empty">
                       Search the library to see replacement options.
                     </div>

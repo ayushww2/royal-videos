@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { jobDataFile, loadJob, readJson, writeJson } from "../storage.js";
 import { config } from "../config.js";
@@ -448,6 +450,102 @@ export async function swapSceneVisual(params: {
     updatedAt: new Date().toISOString(),
   });
   await persistScenes(params.jobId, nextScenes);
+  return { scene: replacementScene, approved: replacementApproved };
+}
+
+export async function applyWebStill(params: {
+  jobId: string;
+  sceneId: string;
+  imageUrl: string;
+  title?: string;
+}): Promise<{ scene: TimelineScene; approved: ApprovedVisual }> {
+  const job = await loadJob(params.jobId);
+  if (!job) throw new Error("Job not found");
+  if (job.timelineLock?.locked) throw new Error("Timeline is locked. Unlock before swapping visuals.");
+  const imageUrl = String(params.imageUrl || "").trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(imageUrl);
+  } catch {
+    throw new Error("Image URL is not valid");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new Error("Image URL is not valid");
+
+  const scenes = await loadTimelineScenes(params.jobId);
+  const scene = scenes.find((s) => s.sceneId === params.sceneId);
+  if (!scene) throw new Error(`Scene not found: ${params.sceneId}`);
+
+  const response = await fetch(imageUrl, {
+    headers: { "User-Agent": "Mozilla/5.0", Accept: "image/*,*/*" },
+    signal: AbortSignal.timeout(20000),
+    redirect: "follow",
+  });
+  if (!response.ok) throw new Error(`Could not download that image (${response.status})`);
+  const type = response.headers.get("content-type") || "";
+  if (!type.startsWith("image/")) throw new Error("That result is not an image file");
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.length < 1000 || bytes.length > 15_000_000) throw new Error("That image is empty or too large");
+  const ext = type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg";
+  const assetId = `web-${randomUUID()}`;
+  const relative = path.join("jobs", params.jobId, "web-stills", `${assetId}.${ext}`);
+  const absolute = path.join(config.storagePath, relative);
+  await fs.mkdir(path.dirname(absolute), { recursive: true });
+  await fs.writeFile(absolute, bytes);
+
+  const title = String(params.title || "Google image").slice(0, 180);
+  const replacementScene: TimelineScene = {
+    ...scene,
+    selectedVisualId: assetId,
+    approvedVisualId: assetId,
+    alternativeAssetIds: [],
+    source: "google_image",
+    rawFootageUsed: false,
+    needsBetterVisual: false,
+    viewerShouldSee: title,
+    reasonSelected: `Editor chose a Google image. ${title}`,
+    editorNotes: title,
+  };
+  const replacementApproved: ApprovedVisual = {
+    approvedVisualId: assetId,
+    source: "google_image",
+    filePathOrUrl: absolute,
+    thumbnail: absolute,
+    matchedPeople: [],
+    matchedCompanies: [],
+    matchedPlaces: [],
+    matchedEvents: [],
+    matchedDocuments: [],
+    matchedObjects: [],
+    allowedBeatIds: [scene.beatId],
+    bestUseCase: title,
+    confidenceScores: {
+      entityMatch: 70,
+      sceneMatch: 70,
+      topicRelevance: 70,
+      eventPlaceYearRelevance: 60,
+      visualQuality: 70,
+      cropSafety16x9: 70,
+      sourceReliability: 60,
+      wrongEntityRisk: 20,
+      watermarkTextRisk: 20,
+      reusePotential: 10,
+    },
+    reuseLimit: 1,
+    warnings: ["Downloaded from Google Images"],
+    candidateId: assetId,
+    mediaType: "image",
+  };
+  const libraryReport = await readJson<{ approved: ApprovedVisual[] }>(
+    jobDataFile("visual-intelligence-approved-library", params.jobId)
+  );
+  const approved = libraryReport?.approved || [];
+  await writeJson(jobDataFile("visual-intelligence-approved-library", params.jobId), {
+    jobId: params.jobId,
+    approved: [...approved.filter((v) => v.approvedVisualId !== assetId), replacementApproved],
+    source: "timeline editor google still",
+    updatedAt: new Date().toISOString(),
+  });
+  await persistScenes(params.jobId, scenes.map((s) => (s.sceneId === params.sceneId ? replacementScene : s)));
   return { scene: replacementScene, approved: replacementApproved };
 }
 
