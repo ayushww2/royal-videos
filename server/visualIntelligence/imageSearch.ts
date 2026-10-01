@@ -31,8 +31,6 @@ export async function searchGoogleImages(
   url.searchParams.set("api_key", key);
   url.searchParams.set("hl", "en");
   url.searchParams.set("gl", "us");
-  url.searchParams.set("safe", "active");
-  url.searchParams.set("num", String(Math.min(Math.max(count, 1), 20)));
 
   const res = await fetch(url);
   if (!res.ok) {
@@ -60,7 +58,7 @@ export async function searchGoogleImages(
     thumbnail: img.thumbnail,
     source: img.source,
   }));
-  return rows.slice(0, Math.min(count, 20)).map((img) => {
+  return rows.slice(0, Math.min(Math.max(count, 1), 40)).map((img) => {
     const thumb = typeof img.thumbnail === "string" ? img.thumbnail : img.thumbnail?.link;
     const source = typeof img.source === "string" ? img.source : img.source?.name;
     return {

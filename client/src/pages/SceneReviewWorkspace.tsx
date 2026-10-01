@@ -264,7 +264,7 @@ export function SceneReviewWorkspace() {
     setMessage("");
     if (mode === "replace") {
       setLibraryHits([]);
-      setLibraryQuery(scene.narrationText || scene.viewerShouldSee || "");
+      setLibraryQuery("");
       setReplacePerson(REPLACE_PEOPLE.find((person) => (scene.mainPerson || "").includes(person)) || "");
       setReplaceMedia(scene.rawFootageUsed ? "raw_footage" : "any");
     }
@@ -317,14 +317,13 @@ export function SceneReviewWorkspace() {
     source = replaceSource
   ) {
     if (!selected) return;
-    if (source === "google" && !query.trim() && !person.trim()) return;
+    if (source === "google" && !query.trim()) return;
     if (source === "library" && !query.trim() && !person.trim()) return;
     setSearching(true);
     setError("");
     try {
       if (source === "google") {
-        const q = [person.trim(), query.trim()].filter(Boolean).join(" ");
-        const data = await searchEditorWeb(jobId || "", q);
+        const data = await searchEditorWeb(jobId || "", query.trim());
         setWebHits(data.hits || []);
         setLibraryHits([]);
       } else {
@@ -689,7 +688,10 @@ export function SceneReviewWorkspace() {
                   <button
                     className="btn btn-primary"
                     type="button"
-                    disabled={searching || (!libraryQuery.trim() && !replacePerson.trim())}
+                    disabled={
+                      searching ||
+                      (replaceSource === "google" ? !libraryQuery.trim() : !libraryQuery.trim() && !replacePerson.trim())
+                    }
                     onClick={() => void runLibrarySearch()}
                   >
                     {searching ? "Searching…" : "Search"}
@@ -705,7 +707,9 @@ export function SceneReviewWorkspace() {
                         setReplaceSource(source);
                         setLibraryHits([]);
                         setWebHits([]);
-                        if (source === "google") void runLibrarySearch(replacePerson, replaceMedia, libraryQuery, "google");
+                        if (source === "google" && libraryQuery.trim()) {
+                          void runLibrarySearch(replacePerson, replaceMedia, libraryQuery, "google");
+                        }
                       }}
                     >
                       <option value="library">Royal library</option>

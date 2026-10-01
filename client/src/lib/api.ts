@@ -132,7 +132,7 @@ export type WebImageHit = {
 };
 
 export function searchEditorWeb(jobId: string, query: string) {
-  const params = new URLSearchParams({ q: query.trim(), limit: "16" });
+  const params = new URLSearchParams({ q: query.trim(), limit: "40" });
   return api<{ count: number; hits: WebImageHit[]; configured?: boolean; error?: string }>(
     `/api/jobs/${jobId}/editor/web-search?${params.toString()}`
   );
