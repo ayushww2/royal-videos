@@ -378,6 +378,8 @@ export type SlideshowProps = {
   transitionFrames?: number;
   intensity?: number;
   showPresetLabel?: boolean;
+  /** Catalog/demo option: keep the final slide visible through the slot boundary. */
+  holdLastFrame?: boolean;
 };
 
 const getSlideEntries = (
@@ -466,6 +468,7 @@ export const CinematicStageSlideshow: React.FC<SlideshowProps> = ({
   defaultSlideFrames = 105,
   transitionFrames = 20,
   intensity = 0.72,
+  holdLastFrame = false,
 }) => {
   const entries = getSlideEntries(slides, defaultSlideFrames, transitionFrames);
 
@@ -475,7 +478,12 @@ export const CinematicStageSlideshow: React.FC<SlideshowProps> = ({
     <AbsoluteFill style={{backgroundColor: '#241104', overflow: 'hidden'}}>
       {entries.map(({slide, start, duration, index}) => (
         <Sequence key={`${slide.src}-${index}`} from={start} durationInFrames={duration}>
-          <CinematicStageSlide slide={slide} duration={duration} intensity={intensity} />
+          <CinematicStageSlide
+            slide={slide}
+            duration={duration}
+            intensity={intensity}
+            suppressOutro={holdLastFrame && index === slides.length - 1}
+          />
         </Sequence>
       ))}
     </AbsoluteFill>
@@ -486,16 +494,19 @@ const CinematicStageSlide: React.FC<{
   slide: SlideItem;
   duration: number;
   intensity: number;
-}> = ({slide, duration, intensity}) => {
+  suppressOutro?: boolean;
+}> = ({slide, duration, intensity, suppressOutro = false}) => {
   const frame = useCurrentFrame();
   const p = clamp01(frame / duration);
   const intro = phase(frame, 0, 10);
-  const outro = interpolate(
-    frame,
-    [Math.max(0, duration - 12), duration],
-    [1, 0],
-    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
-  );
+  const outro = suppressOutro
+    ? 1
+    : interpolate(
+        frame,
+        [Math.max(0, duration - 12), duration],
+        [1, 0],
+        {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
+      );
 
   return (
     <AbsoluteFill style={{overflow: 'hidden'}}>
