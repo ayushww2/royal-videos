@@ -72,17 +72,60 @@ function assetPeople(asset: LibraryAsset): string[] {
 function scoreAsset(asset: LibraryAsset, plan: ScenePlan, onlyPerson?: string): number {
   const required = onlyPerson ? [onlyPerson] : namedPeople(plan.show);
   const people = assetPeople(asset);
-  if (required.length && !required.some((person) => people.includes(person))) return 0;
   const text = haystack(asset);
-  if (/close-up|close up|extreme close|face fills|cropped face|tight crop/.test(text)) return 0;
+  if (required.length) {
+    if (!people.length || !required.some((person) => people.includes(person))) return 0;
+    if (people.some((person) => person !== "British Royal Family" && !required.includes(person))) return 0;
+  }
+  if (/close-up|close up|extreme close|face fills|cropped face|tight crop|watermark/.test(text)) return 0;
+  if (/\btoddler\b|\bbaby\b|\binfant\b/.test(text) && !/baby|born|infant|toddler|childhood/i.test(plan.search)) return 0;
   let score = required.length ? 40 : 0;
   for (const word of tokens(plan.search)) {
     if (namedPeople(word).length) continue;
     if (text.includes(word)) score += 12;
   }
+  if (/crash|wreck|funeral|headline|news/.test(plan.search) && /crash|wreck|funeral|headline|newspaper|ambulance/.test(text)) score += 30;
+  if (/interview|bashir|panorama|seated/.test(plan.search) && /interview|bashir|panorama|seated|studio/.test(text)) score += 24;
+  if (/interview|bashir|panorama/.test(plan.search) && /balcony|trooping|meghan|harry|markle/.test(text)) return 0;
+  if (/coronation|ceremony|crowned/.test(plan.search) && /coronation|abbey|crown|ceremony/.test(text)) score += 24;
   if (asset.description) score += 4;
   if (asset.duration && asset.duration >= 2) score += 3;
   return score;
+}
+
+/** People and the shot come from the spoken line. A stored "show" label cannot override that. */
+function lockPlan(scene: TimelineScene, previousLines: string[], plan: ScenePlan): ScenePlan {
+  const line = scene.narrationText || "";
+  const recent = previousLines.slice(-3).join(" ");
+  const mentioned = namedPeople(line).filter((person) => person !== "British Royal Family");
+  const recentPeople = namedPeople(recent);
+  const pronoun = /\b(she|her|hers)\b/i.test(line);
+  let people = [...mentioned];
+  if (pronoun && recentPeople.includes("Princess Diana") && !people.includes("Princess Diana")) {
+    people.unshift("Princess Diana");
+  }
+  if (pronoun && recentPeople.includes("Princess Anne") && !people.includes("Princess Anne") && !people.includes("Princess Diana")) {
+    people.unshift("Princess Anne");
+  }
+  const panorama = /panorama|bashir|three of us/i.test(`${line} ${recent}`);
+  if (panorama) {
+    people = ["Princess Diana", ...people.filter((person) => person === "Queen Camilla" || person === "King Charles")];
+  }
+  const death = /never lived|died|death|killed|crash|car accident/i.test(line);
+  const ceremony = /king|crowned|coronation|heir|throne/i.test(line);
+  const speaking = /told|said|asked|warning|silence|remembered|interview/i.test(line);
+  const show = people.length ? people.join(" and ") : plan.show;
+  let search = line;
+  if (panorama) search = `Princess Diana seated speaking in the 1995 Martin Bashir Panorama interview medium shot ${line}`;
+  else if (death) search = `Diana death Paris car crash news headline ${line}`;
+  else if (ceremony && people.includes("King Charles")) search = `King Charles formal coronation ceremony ${line}`;
+  else if (speaking && people[0]) search = `${people[0]} speaking medium shot ${line}`;
+  return {
+    ...plan,
+    speaker: people[0] || plan.speaker,
+    show: show.slice(0, 140),
+    search: search.slice(0, 220),
+  };
 }
 
 function wantClip(prefer: Prefer, placed: number, clips: number, recent: boolean[], forceClip: boolean): boolean {
@@ -269,6 +312,10 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
         });
       }
     }
+    for (let index = 0; index < plans.length; index++) {
+      const previous = scenes.slice(Math.max(0, index - 3), index).map((scene) => scene.narrationText || "");
+      plans[index] = lockPlan(scenes[index], previous, plans[index]);
+    }
 
     const assets = await loadRoyalLibraryAssets();
     const placements: Placement[] = [];
@@ -319,7 +366,7 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
           tokens: shotTokens(lead),
         });
 
-      const required = namedPeople(plan.show);
+      const required = namedPeople(plan.show).filter((person) => person !== "British Royal Family");
       const leadPerson = required[0];
       const otherPerson = required[1] || required[0];
       const pairFor = (target: number) => {
