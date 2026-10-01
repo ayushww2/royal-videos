@@ -256,7 +256,7 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
         });
       }
     } else {
-      const batchSize = 16;
+      const batchSize = 8;
       for (let offset = 0; offset < scenes.length; offset += batchSize) {
         const batch = scenes.slice(offset, offset + batchSize);
         plans.push(...(await planBatch(batch, scenes)));
