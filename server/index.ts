@@ -553,6 +553,27 @@ app.post(
   }
 );
 
+/** GPT 6.1 plans each line; the server assigns library clips and stills. */
+app.post("/api/jobs/:jobId/assign-context-visuals", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  const { assignContextVisuals, contextVisualAssignRunning } = await import(
+    "./visualIntelligence/royalV2/contextVisualAssign.js"
+  );
+  if (contextVisualAssignRunning(job.jobId)) {
+    return res.status(409).json({ error: "Visual assignment is already running" });
+  }
+  void assignContextVisuals(job.jobId).catch((err) => {
+    console.error("[context-visuals]", job.jobId, err);
+  });
+  res.status(202).json({
+    ok: true,
+    started: true,
+    model: process.env.ROYAL_REASONING_MODEL || "gpt-6.1-sol",
+    progress: `/api/jobs/${job.jobId}/reports/royal-context-visual-assign`,
+  });
+});
+
 /** Write one scene per script line from the saved Whisper alignment. No visuals. */
 app.post("/api/jobs/:jobId/whisper-line-scenes", async (req, res) => {
   const job = await loadJob(req.params.jobId);
@@ -1022,6 +1043,7 @@ app.get("/api/jobs/:jobId/reports", async (req, res) => {
     { key: "royal-v2-soft-approval", label: "Royal v2 soft scene approval" },
     { key: "royal-v2-auto-approval", label: "Royal v2 auto approval" },
     { key: "royal-v2-sfx-plan", label: "Royal v2 SFX plan" },
+    { key: "royal-context-visual-assign", label: "Context visual assignment" },
   ];
   const available = [];
   for (const r of reports) {
@@ -1093,6 +1115,7 @@ app.get("/api/jobs/:jobId/reports/:reportKey", async (req, res) => {
     "royal-v2-auto-approval",
     "royal-v2-sfx-plan",
     "royal-v2-glitch-plan",
+    "royal-context-visual-assign",
   ]);
   if (!allowed.has(req.params.reportKey)) {
     return res.status(400).json({ error: "Unknown report" });
