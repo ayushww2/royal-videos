@@ -252,6 +252,16 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
         chosen = pool.find((item) => canReuse(uses.get(item.asset.assetId) || [], scene.startTime));
         if (chosen) break;
       }
+      if (!chosen && mustFollowWithClip) {
+        const person = canonicalRoyalPerson(plan.show) || canonicalRoyalPerson(plan.speaker);
+        const personName = (person || "").toLowerCase();
+        chosen = assets
+          .filter((asset) => isClipAsset(asset))
+          .filter((asset) => !personName || haystack(asset).includes(personName) || canonicalRoyalPerson(asset.person) === person)
+          .map((asset) => ({ asset, score: scoreAsset(asset, plan) }))
+          .sort((a, b) => b.score - a.score)
+          .find((item) => canReuse(uses.get(item.asset.assetId) || [], scene.startTime));
+      }
 
       scene.warnings = (scene.warnings || []).filter(
         (warning) => !/No library asset|Hold the last frame|following clip/i.test(warning)
