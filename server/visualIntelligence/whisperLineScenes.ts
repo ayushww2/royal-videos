@@ -33,8 +33,16 @@ export async function publishWhisperLineScenes(job: JobRecord): Promise<Timeline
 
   const scenes: TimelineScene[] = lines.map((text, index) => {
     const span = spans[index];
-    const startTime = Number(span.start.toFixed(3));
-    const endTime = Number(Math.max(span.start, span.end).toFixed(3));
+    let startTime = Number(span.start.toFixed(3));
+    let endTime = Number(Math.max(span.start, span.end).toFixed(3));
+    const previous = index > 0 ? spans[index - 1] : undefined;
+    if (previous) {
+      const previousEnd = Number(previous.end.toFixed(3));
+      if (startTime < previousEnd && previousEnd - startTime <= 0.08) {
+        startTime = previousEnd;
+        endTime = Math.max(startTime, endTime);
+      }
+    }
     const timing = {
       startTime,
       endTime,
