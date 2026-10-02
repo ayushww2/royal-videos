@@ -424,7 +424,7 @@ export function SceneReviewWorkspace() {
       job={job}
       contentClassName="content-tool"
       actions={
-        job?.niche === "Royal v2" ? (
+        job?.niche === "Royal v2" || job?.niche === "Royal v3" ? (
           job.timelineLock?.locked ? (
             <button className="btn btn-secondary btn-sm" type="button" onClick={unlockRoyalTimeline}>
               Unlock timeline

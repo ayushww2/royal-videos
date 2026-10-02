@@ -59,6 +59,7 @@ import {
   validateCredentials,
 } from "./auth.js";
 import type { ApprovedVisual, JobRecord, NicheStyle, TimelineScene } from "../shared/visualIntelligence.js";
+import { isRoyalFinalNiche } from "../shared/visualIntelligence.js";
 import { JOB_STATUS_LABELS, WORDS_PER_MINUTE } from "../shared/visualIntelligence.js";
 import type { EffectTimelineEvent } from "./visualIntelligence/effectPlanner.js";
 
@@ -373,7 +374,7 @@ app.post("/api/jobs", upload.fields([
         "YouTube raw links are only supported for Celebrity v1, Mystery v1, Mystery v2, Space v1, and War v1",
     });
   }
-  if (niche === "Royal v2") {
+  if (isRoyalFinalNiche(niche)) {
     userYoutubeRawUrls = [];
   }
 
@@ -815,8 +816,8 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/approve", async (req, res) => {
 app.post("/api/jobs/:jobId/scenes/:sceneId/reject", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  if (job.niche === "Royal v2" && job.timelineLock?.locked) {
-    return res.status(409).json({ error: "Timeline is locked; unlock Royal v2 before changing approval" });
+  if (isRoyalFinalNiche(job.niche) && job.timelineLock?.locked) {
+    return res.status(409).json({ error: "Timeline is locked; unlock it before changing approval" });
   }
   job.sceneApprovals = job.sceneApprovals || {};
   job.sceneApprovals[req.params.sceneId] = "rejected";
@@ -829,8 +830,8 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/find-better", async (req, res) => {
   // Only place where re-search is allowed: explicit user action.
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  if (job.niche === "Royal v2" && job.timelineLock?.locked) {
-    return res.status(409).json({ error: "Timeline is locked; unlock Royal v2 before replacing visuals" });
+  if (isRoyalFinalNiche(job.niche) && job.timelineLock?.locked) {
+    return res.status(409).json({ error: "Timeline is locked; unlock it before replacing visuals" });
   }
   const scenes = await loadScenes(job.jobId);
   const scene = scenes.find((s) => s.sceneId === req.params.sceneId);
@@ -932,7 +933,7 @@ app.get("/api/jobs/:jobId/render-info", async (req, res) => {
     sceneReviewReady,
     sceneReviewApproved: scenes.length > 0 && approvedCount === scenes.length,
     finalTimelineSaved:
-      job.niche === "Royal v2" ? Boolean(job.timelineLock?.locked) : scenes.length > 0,
+      isRoyalFinalNiche(job.niche) ? Boolean(job.timelineLock?.locked) : scenes.length > 0,
     libraryBuilt,
     qaCanRender: qa?.canRender !== false,
   };
@@ -940,11 +941,11 @@ app.get("/api/jobs/:jobId/render-info", async (req, res) => {
   if (!sceneReviewReady) blockedReasons.push("Scene Review required before render");
   if (!libraryBuilt && scenes.length === 0) blockedReasons.push("Visual library not built yet");
   if (approvedCount === 0) blockedReasons.push("no approved scenes");
-  if (job.niche === "Royal v2" && approvedCount !== scenes.length) {
-    blockedReasons.push("All Royal v2 scenes must be approved");
+  if (isRoyalFinalNiche(job.niche) && approvedCount !== scenes.length) {
+    blockedReasons.push("All scenes must be approved");
   }
-  if (job.niche === "Royal v2" && !job.timelineLock?.locked) {
-    blockedReasons.push("Royal v2 final timeline is not locked");
+  if (isRoyalFinalNiche(job.niche) && !job.timelineLock?.locked) {
+    blockedReasons.push("Final timeline is not locked");
   }
   if (qa && qa.canRender === false) {
     blockedReasons.push("Render blocked by critical warning");
@@ -1158,8 +1159,8 @@ app.delete("/api/jobs/:jobId", async (req, res) => {
 app.post("/api/jobs/:jobId/scenes/:sceneId/mark-needs-better", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  if (job.niche === "Royal v2" && job.timelineLock?.locked) {
-    return res.status(409).json({ error: "Timeline is locked; unlock Royal v2 before editing" });
+  if (isRoyalFinalNiche(job.niche) && job.timelineLock?.locked) {
+    return res.status(409).json({ error: "Timeline is locked; unlock it before editing" });
   }
   job.sceneApprovals = job.sceneApprovals || {};
   job.sceneApprovals[req.params.sceneId] = "rejected";
@@ -1213,8 +1214,8 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/use-source", async (req, res) => {
   const prefer = String(req.body?.prefer || "");
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  if (job.niche === "Royal v2" && job.timelineLock?.locked) {
-    return res.status(409).json({ error: "Timeline is locked; unlock Royal v2 before replacing visuals" });
+  if (isRoyalFinalNiche(job.niche) && job.timelineLock?.locked) {
+    return res.status(409).json({ error: "Timeline is locked; unlock it before replacing visuals" });
   }
   const scenes = await loadScenes(job.jobId);
   const scene = scenes.find((s) => s.sceneId === req.params.sceneId);
@@ -1441,15 +1442,14 @@ app.post("/api/jobs/:jobId/render", async (req, res) => {
   }
   const jobCheck = await loadJob(req.params.jobId);
   if (!jobCheck) return res.status(404).json({ error: "Job not found" });
-  if (jobCheck.niche === "Royal v2" && !jobCheck.timelineLock?.locked) {
-    return res.status(400).json({ error: "Royal v2 timeline must be approved and locked before render" });
+  if (isRoyalFinalNiche(jobCheck.niche) && !jobCheck.timelineLock?.locked) {
+    return res.status(400).json({ error: "Timeline must be approved and locked before render" });
   }
   let scenesCheck: TimelineScene[];
   try {
-    scenesCheck =
-      jobCheck.niche === "Royal v2"
-        ? await loadVerifiedRoyalV2Timeline(req.params.jobId)
-        : await loadScenes(req.params.jobId);
+    scenesCheck = isRoyalFinalNiche(jobCheck.niche)
+      ? await loadVerifiedRoyalV2Timeline(req.params.jobId)
+      : await loadScenes(req.params.jobId);
   } catch (error) {
     return res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
   }
