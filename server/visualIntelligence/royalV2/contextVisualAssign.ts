@@ -75,15 +75,34 @@ function scoreAsset(asset: LibraryAsset, plan: ScenePlan, onlyPerson?: string): 
   const text = haystack(asset);
   if (required.length) {
     if (!people.length || !required.some((person) => people.includes(person))) return 0;
-    if (people.some((person) => person !== "British Royal Family" && !required.includes(person))) return 0;
+    const outsiders = people.filter((person) => person !== "British Royal Family" && !required.includes(person));
+    if (/panorama|bashir/.test(plan.search) && outsiders.length) return 0;
+    if (outsiders.includes("Meghan, Duchess of Sussex")) return 0;
   }
   if (/close-up|close up|extreme close|face fills|cropped face|tight crop|watermark/.test(text)) return 0;
+  if (/\btoddler\b|\bbaby\b|\binfant\b|\bboy\b|\bchild\b/.test(text) && /adult|grew|adulthood|royal men/i.test(plan.search)) return 0;
   if (/\btoddler\b|\bbaby\b|\binfant\b/.test(text) && !/baby|born|infant|toddler|childhood/i.test(plan.search)) return 0;
   let score = required.length ? 40 : 0;
+  if (required.length >= 2) {
+    const covered = required.filter((person) => people.includes(person) || namedPeople(text).includes(person));
+    score += covered.length * 18;
+  }
   for (const word of tokens(plan.search)) {
     if (namedPeople(word).length) continue;
     if (text.includes(word)) score += 12;
   }
+  if (/news headline|death|crash/.test(plan.search)) {
+    if (/headline|newspaper|news|funeral|crash|wreck|ambulance|certificate|dead/.test(text)) score += 36;
+    if (/smile|laugh|wedding|waves|portrait/.test(text)) score -= 28;
+  }
+  if (/speaking|microphone|interview/.test(plan.search)) {
+    if (/speak|speaking|microphone|interview|studio|lectern/.test(text)) score += 28;
+    if (/wedding|bride|groom/.test(text) && !/wedding|married|divorce/i.test(plan.search)) score -= 24;
+  }
+  if (/formal ceremony|carriage|coronation/.test(plan.search) && /ceremony|carriage|coronation|uniform|abbey|crown|wedding/.test(text)) {
+    score += 28;
+  }
+  if (/senior royals|formal group/.test(plan.search) && /senior|formal|group|balcony|royals/.test(text)) score += 36;
   if (/crash|wreck|funeral|headline|news/.test(plan.search) && /crash|wreck|funeral|headline|newspaper|ambulance/.test(text)) score += 30;
   if (/interview|bashir|panorama|seated/.test(plan.search) && /interview|bashir|panorama|seated|studio/.test(text)) score += 24;
   if (/interview|bashir|panorama/.test(plan.search) && /balcony|trooping|meghan|harry|markle/.test(text)) return 0;
@@ -93,8 +112,14 @@ function scoreAsset(asset: LibraryAsset, plan: ScenePlan, onlyPerson?: string): 
   return score;
 }
 
+function subjectWhoDied(text: string): string {
+  if (/queen elizabeth|elizabeth ii/i.test(text)) return "Queen Elizabeth";
+  const people = namedPeople(text).filter((person) => person !== "British Royal Family");
+  return people[0] || "";
+}
+
 /** People and the shot come from the spoken line. A stored "show" label cannot override that. */
-function lockPlan(scene: TimelineScene, previousLines: string[], plan: ScenePlan): ScenePlan {
+function lockPlan(scene: TimelineScene, previousLines: string[], nextLine: string, plan: ScenePlan): ScenePlan {
   const line = scene.narrationText || "";
   const recent = previousLines.slice(-3).join(" ");
   const mentioned = namedPeople(line).filter((person) => person !== "British Royal Family");
@@ -111,23 +136,31 @@ function lockPlan(scene: TimelineScene, previousLines: string[], plan: ScenePlan
   if (panorama) {
     people = ["Princess Diana", ...people.filter((person) => person === "Queen Camilla" || person === "King Charles")];
   }
-  const death = /never lived|died|death|killed|crash|car accident/i.test(line);
-  const ceremony = /king|crowned|coronation|heir|throne/i.test(line);
-  const speaking = /told|said|asked|warning|silence|remembered|interview/i.test(line);
-  if (!people.length) {
+  const deathLine = /never lived|died|death|killed|crash|car accident/i.test(line);
+  const nextDeath = /died|death|killed|crash/i.test(nextLine);
+  const died = subjectWhoDied(deathLine ? line : nextDeath ? nextLine : "");
+  const ceremony = /married|wedding|divorce|became king|became queen|prince of wales|coronation|direct royal heir|crowned/i.test(line);
+  const speaking = /those words|explained|worried|told|said|interview|private words|feared/i.test(line);
+  const institution = /the crown|institution|royal triangle|ammunition|history remembered|senior royal/i.test(line);
+  const adults = /grew|adulthood|adult royal|royal men/i.test(line);
+  if (!people.length && !deathLine && !nextDeath && !institution) {
     people = recentPeople.filter((person) => person !== "British Royal Family").slice(0, 2);
   }
-  const show = people.length ? people.join(" and ") : line.slice(0, 140);
+  if (institution) people = [];
+  const show = people.length ? people.join(" and ") : died || "senior royals";
   let search = line;
   if (panorama) search = `Princess Diana seated speaking in the 1995 Martin Bashir Panorama interview medium shot ${line}`;
-  else if (death) search = `Diana death Paris car crash news headline ${line}`;
-  else if (ceremony && people.includes("King Charles")) search = `King Charles formal coronation ceremony ${line}`;
-  else if (speaking && people[0]) search = `${people[0]} speaking medium shot ${line}`;
+  else if (deathLine || nextDeath) search = `${died || "royal"} death news headline funeral ${line}`;
+  else if (ceremony) search = `${people.join(" and ") || "royal"} together formal ceremony carriage coronation ${line}`;
+  else if (speaking && people[0]) search = `${people[0]} speaking microphone interview medium shot ${line}`;
+  else if (institution) search = `senior royals formal group ${line}`;
+  else if (adults) search = `${people.join(" and ") || "princes"} adult royal men together ${line}`;
+  else if (people.length >= 2) search = `${people.join(" and ")} together ${line}`;
   return {
     ...plan,
-    speaker: people[0] || plan.speaker,
+    speaker: people[0] || died || plan.speaker,
     show: show.slice(0, 140),
-    search: search.slice(0, 220),
+    search: search.slice(0, 240),
   };
 }
 
@@ -207,7 +240,7 @@ async function planBatch(scenes: TimelineScene[], all: TimelineScene[]): Promise
     system: [
       "Decide the exact shot for one narration line. show is who. search is the specific picture, not a vague name.",
       "Resolve she and her from the previous lines. Anne telling William what Diana wanted is Anne speaking, unless the line is the memory itself.",
-      "Match the event. A secret kept: that person speaking. A death or never lived to see it: the death or the news, not a plain portrait. Becoming king or heir: a formal ceremony. An interview: that person speaking in the interview, medium shot. Two people together only when the line is about both.",
+      "Match the event, not a loose portrait. A death is the news of that death: a headline, funeral, or crash, for the person who died. Becoming king, queen, Prince of Wales, or a wedding day is those people together in the ceremony or carriage. Words, a warning, or an explanation is that person speaking, not their wedding. Two people in the line means both of them. Boys who grew into adult royal men are the adults. The Crown, the institution, or the royal triangle is the senior royals as a group. An interview is that person speaking, medium shot.",
       "Do not use a toddler when the line is about an older child or an adult memory. Do not use a face cropped in half or an extreme close-up. Charles Spencer is not King Charles.",
       "Prefer a clip for speaking, ceremony, or an event. Use a still when a clip would repeat or the moment is a photograph. Never plan more than two clip scenes in a row.",
       "The whole video may use at most 120 different clips. Each clip at most twice, second use at least 8 minutes later.",
@@ -317,7 +350,8 @@ export async function assignContextVisuals(jobId: string, options?: { reusePlans
     }
     for (let index = 0; index < plans.length; index++) {
       const previous = scenes.slice(Math.max(0, index - 3), index).map((scene) => scene.narrationText || "");
-      plans[index] = lockPlan(scenes[index], previous, plans[index]);
+      const nextLine = scenes[index + 1]?.narrationText || "";
+      plans[index] = lockPlan(scenes[index], previous, nextLine, plans[index]);
     }
 
     const assets = await loadRoyalLibraryAssets();
