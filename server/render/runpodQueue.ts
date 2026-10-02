@@ -5,7 +5,7 @@ import { jobDataFile, listJobs, loadJob, readJson, saveJob, writeJson } from "..
 import { mediaLibraryPublicBase, r2Configured, r2PutObject } from "../library/r2.js";
 import { runFinalQA } from "../visualIntelligence/finalQA.js";
 import { loadVerifiedRoyalV2Timeline } from "../visualIntelligence/royalV2/lock.js";
-import type { ApprovedVisual, TimelineScene } from "../../shared/visualIntelligence.js";
+import { isRoyalFinalNiche, type ApprovedVisual, type TimelineScene } from "../../shared/visualIntelligence.js";
 import type { EffectTimelineEvent } from "../visualIntelligence/effectPlanner.js";
 import { buildRemotionInputProps, type RemotionInputProps } from "./remotionRender.js";
 import {
@@ -82,15 +82,14 @@ export async function queueRunpodRender(
   if (!job) throw new Error("Job not found");
 
   const assignment =
-    job.niche === "Royal v2"
+    isRoyalFinalNiche(job.niche)
       ? null
       : await readJson<{ scenes: TimelineScene[] }>(
           jobDataFile("visual-intelligence-final-assignment", jobId)
         );
-  const scenes =
-    job.niche === "Royal v2"
-      ? await loadVerifiedRoyalV2Timeline(jobId)
-      : assignment?.scenes || [];
+  const scenes = isRoyalFinalNiche(job.niche)
+    ? await loadVerifiedRoyalV2Timeline(jobId)
+    : assignment?.scenes || [];
   if (!scenes.length) throw new Error("No Scene Review assignment found");
 
   const qa = await runFinalQA(jobId, scenes);

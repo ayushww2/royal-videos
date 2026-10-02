@@ -14,6 +14,7 @@ import {
 import {
   loadRoyalLibraryAssets,
   royalAssetPreviewUrl,
+  royalAssetUrl,
   searchRoyalLibrary,
 } from "./library.js";
 
@@ -27,6 +28,7 @@ export type EditorLibraryHit = {
   description?: string;
   title?: string;
   previewUrl: string;
+  clipUrl?: string;
   width?: number;
   height?: number;
   duration?: number;
@@ -69,6 +71,12 @@ function clampLimit(raw: unknown, fallback: number, max: number): number {
   return Math.max(1, Math.min(max, Math.floor(n)));
 }
 
+function matchesMedia(asset: LibraryAsset, mediaType?: "image" | "raw_footage"): boolean {
+  if (!mediaType) return true;
+  if (mediaType === "image") return asset.mediaType === "image";
+  return asset.mediaType === "raw_footage" || asset.mediaType === "trusted_clip";
+}
+
 function matchesPerson(asset: LibraryAsset, person: string): boolean {
   const raw = person.trim().toLowerCase();
   if (!raw) return true;
@@ -91,7 +99,13 @@ function toLibraryHit(asset: LibraryAsset): EditorLibraryHit {
     categories: asset.categories || [],
     description: asset.description,
     title: asset.title,
-    previewUrl: royalAssetPreviewUrl(asset),
+    previewUrl: asset.thumbKey
+      ? royalAssetUrl({ ...asset, r2Key: asset.thumbKey })
+      : royalAssetPreviewUrl(asset),
+    clipUrl:
+      asset.mediaType === "raw_footage" || asset.mediaType === "trusted_clip"
+        ? royalAssetUrl(asset)
+        : undefined,
     width: asset.width,
     height: asset.height,
     duration: asset.duration,
@@ -111,7 +125,7 @@ export async function searchRoyalLibraryForEditor(
 ): Promise<{ count: number; assets: EditorLibraryHit[] }> {
   const q = String(options.q || "").trim();
   const person = String(options.person || "").trim();
-  const limit = clampLimit(options.limit, 20, 50);
+  const limit = clampLimit(options.limit, person ? 4000 : 20, person ? 4000 : 80);
   const mediaType =
     options.mediaType === "image" || options.mediaType === "raw_footage"
       ? options.mediaType
@@ -121,19 +135,30 @@ export async function searchRoyalLibraryForEditor(
     throw new Error("q or person is required");
   }
 
-  // When only person is set, browse that person's clips; otherwise text-search then filter.
+  // A chosen person returns that person's library. Text only sorts matches first.
   let assets: LibraryAsset[];
-  if (q) {
-    assets = await searchRoyalLibrary(q, { mediaType, limit: Math.min(100, limit * 3) });
-    if (person) assets = assets.filter((a) => matchesPerson(a, person));
-    assets = assets.slice(0, limit);
-  } else {
+  if (person) {
     const all = await loadRoyalLibraryAssets();
-    assets = all
+    const pool = all
       .filter((a) => matchesPerson(a, person))
-      .filter((a) => !mediaType || a.mediaType === mediaType)
-      .sort((a, b) => a.number - b.number)
-      .slice(0, limit);
+      .filter((a) => matchesMedia(a, mediaType));
+    const terms = q
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((word) => word.length > 2);
+    assets = pool
+      .map((asset) => {
+        const hay = `${asset.person} ${asset.title || ""} ${asset.description || ""} ${asset.category || ""}`.toLowerCase();
+        const score = terms.reduce((n, term) => n + (hay.includes(term) ? 1 : 0), 0);
+        return { asset, score };
+      })
+      .sort((a, b) => b.score - a.score || a.asset.number - b.asset.number)
+      .slice(0, limit)
+      .map((item) => item.asset);
+  } else {
+    assets = await searchRoyalLibrary(q, { limit });
+    assets = assets.filter((a) => matchesMedia(a, mediaType)).slice(0, limit);
   }
 
   return { count: assets.length, assets: assets.map(toLibraryHit) };
@@ -239,7 +264,7 @@ export async function searchWebImagesForEditor(
     throw new EditorWebSearchUnavailableError(cfg.missing);
   }
 
-  const hits = await searchGoogleImages(q, clampLimit(limit, 8, 20));
+  const hits = await searchGoogleImages(q, clampLimit(limit, 40, 40));
   return {
     count: hits.length,
     provider: "google_images",
@@ -294,7 +319,7 @@ export function registerEditorSearchRoutes(app: Express): void {
       const q = String(req.query.q || "").trim();
       if (!q) return res.status(400).json({ error: "q is required" });
 
-      const result = await searchWebImagesForEditor(q, Number(req.query.limit || 8));
+      const result = await searchWebImagesForEditor(q, Number(req.query.limit || 16));
       res.json({ jobId: job.jobId, ...result });
     } catch (err) {
       if (err instanceof EditorWebSearchUnavailableError) {
@@ -307,6 +332,36 @@ export function registerEditorSearchRoutes(app: Express): void {
       const message = err instanceof Error ? err.message : String(err);
       const status = message.includes("required") ? 400 : 500;
       res.status(status).json({ error: message });
+    }
+  });
+
+  app.get("/api/jobs/:jobId/editor/web-image", async (req, res) => {
+    try {
+      const target = String(req.query.url || "");
+      let parsed: URL;
+      try {
+        parsed = new URL(target);
+      } catch {
+        return res.status(400).json({ error: "url is required" });
+      }
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+        return res.status(400).json({ error: "url is required" });
+      }
+      const response = await fetch(target, {
+        headers: { "User-Agent": "Mozilla/5.0", Accept: "image/*,*/*" },
+        signal: AbortSignal.timeout(15000),
+        redirect: "follow",
+      });
+      if (!response.ok) return res.status(502).json({ error: "Image could not be loaded" });
+      const type = response.headers.get("content-type") || "image/jpeg";
+      if (!type.startsWith("image/")) return res.status(415).json({ error: "Not an image" });
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (!bytes.length || bytes.length > 8_000_000) return res.status(413).json({ error: "Image is too large" });
+      res.setHeader("Content-Type", type);
+      res.setHeader("Cache-Control", "private, max-age=3600");
+      res.send(bytes);
+    } catch (err) {
+      res.status(502).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
 

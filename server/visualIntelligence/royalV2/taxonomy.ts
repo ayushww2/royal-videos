@@ -2,6 +2,7 @@ import type { RoyalBeatType, RoyalContextType } from "../../../shared/visualInte
 
 const PERSON_ALIASES: Record<string, string[]> = {
   "British Royal Family": ["british royal family", "royal family", "members of the royal family", "the royals"],
+  "Charles Spencer": ["charles spencer", "earl spencer", "viscount althorp"],
   "King Charles": ["king charles", "charles iii", "prince charles", "charles"],
   "Queen Camilla": ["queen camilla", "camilla parker bowles", "camilla"],
   "Prince William": ["prince william", "duke of cambridge", "william"],
@@ -148,7 +149,17 @@ export function royalPersonMentions(text: string): Array<{
     }
     if (best) found.push({ person: canonical, ...best });
   }
-  return found.sort((a, b) => a.index - b.index);
+  const spans = found.sort((a, b) => a.index - b.index || b.matchedText.length - a.matchedText.length);
+  return spans.filter(
+    (item) =>
+      !spans.some(
+        (other) =>
+          other !== item &&
+          other.index <= item.index &&
+          other.index + other.matchedText.length >= item.index + item.matchedText.length &&
+          other.matchedText.length > item.matchedText.length
+      )
+  );
 }
 
 export function extractRoyalPlaces(text: string): string[] {
