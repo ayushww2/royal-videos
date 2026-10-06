@@ -90,7 +90,7 @@ export async function publishWhisperLineScenes(job: JobRecord): Promise<Timeline
 /** Split a paragraph line into sentences. A period jammed against the next capital is already one line. */
 export function splitParagraphSentences(line: string): string[] {
   return line
-    .split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/g)
+    .split(/(?<=[.!?])["”']?\s+(?=[A-Z0-9"“])/g)
     .map((part) => part.trim())
     .filter(Boolean);
 }
@@ -193,6 +193,14 @@ export async function splitJobParagraphsIntoSentences(job: JobRecord): Promise<{
       cursor += 1;
     }
   });
+
+  for (let i = 1; i < scenes.length; i++) {
+    const overlap = scenes[i - 1].endTime - scenes[i].startTime;
+    if (overlap > 0 && overlap <= 0.3) {
+      scenes[i - 1].endTime = scenes[i].startTime;
+      scenes[i - 1].duration = Number((scenes[i - 1].endTime - scenes[i - 1].startTime).toFixed(3));
+    }
+  }
 
   const payload = {
     jobId: job.jobId,
