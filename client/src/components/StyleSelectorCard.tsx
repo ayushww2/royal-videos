@@ -42,7 +42,7 @@ const STYLES = [
     id: "Royal v3",
     title: "Royal v3",
     description:
-      "Final royal path. One spoken line is one scene. Whisper times it, then the library picks the shot the way the Anne job was corrected.",
+      "Final royal path. One spoken line is one scene. The voiceover times it, then the library picks the shot the way the Anne job was corrected.",
   },
 ] as const;
 
