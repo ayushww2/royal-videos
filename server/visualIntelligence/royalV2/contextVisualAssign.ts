@@ -234,7 +234,9 @@ async function planBatch(scenes: TimelineScene[], all: TimelineScene[]): Promise
     };
   });
 
-  const result = await chatJson<{ scenes?: ScenePlan[] }>({
+  let result: { scenes?: ScenePlan[] };
+  try {
+    result = await chatJson<{ scenes?: ScenePlan[] }>({
     model: REASONING_MODEL,
     temperature: 0.3,
     system: [
@@ -248,6 +250,20 @@ async function planBatch(scenes: TimelineScene[], all: TimelineScene[]): Promise
     ].join(" "),
     user: JSON.stringify({ scenes: payload }),
   });
+  } catch (error) {
+    console.warn(
+      `[context-visuals] picture plan used the spoken lines after a bad model reply: ${
+        error instanceof Error ? error.message : error
+      }`
+    );
+    return scenes.map((scene) => ({
+      sceneId: scene.sceneId,
+      speaker: "",
+      show: scene.narrationText,
+      prefer: "either" as const,
+      search: scene.narrationText,
+    }));
+  }
 
   const byId = new Map((result.scenes || []).map((plan) => [plan.sceneId, plan]));
   return scenes.map((scene) => {

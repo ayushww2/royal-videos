@@ -188,9 +188,13 @@ app.get("/api/health", (_req, res) => {
     dataPath: config.dataPath,
     persistentVolume: config.storagePath.startsWith("/data") || config.dataPath.startsWith("/data"),
     pipelineQueue: pipelineQueueSnapshot(),
+    transcription: "assemblyai",
     whisperConcurrency: Math.max(
       1,
-      Math.min(3, Number(process.env.WHISPER_CONCURRENCY || "1") || 1),
+      Math.min(
+        6,
+        Number(process.env.ASSEMBLYAI_CONCURRENCY || "4") || 4,
+      ),
     ),
   });
 });

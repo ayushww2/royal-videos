@@ -1,6 +1,6 @@
 /**
  * Royal v3: the Anne job path.
- * Whisper times one script line as one scene, then the context pass picks the library visual.
+ * AssemblyAI times one script line as one scene, then the context pass picks the library visual.
  */
 import { loadJob, saveJob } from "../../storage.js";
 import { ensureVoiceAlignment } from "../voiceAlignment.js";
@@ -22,7 +22,7 @@ export async function runRoyalV3Pipeline(jobId: string): Promise<JobRecord> {
 
   const alignment = await ensureVoiceAlignment(job);
   if (alignment.status !== "ready" || !alignment.words.length) {
-    throw new Error(alignment.error || "Whisper did not return word timings");
+    throw new Error(alignment.error || "Transcription did not return word timings");
   }
   job.voiceAlignmentStatus = "ready";
   job.voiceAlignmentWordCount = alignment.words.length;

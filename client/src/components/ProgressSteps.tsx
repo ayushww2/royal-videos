@@ -21,7 +21,7 @@ export function ProgressSteps({
     niche === "Royal v3"
       ? [
           { key: "queued", label: "Queued" },
-          { key: "script_analysis", label: "Whisper timings" },
+          { key: "script_analysis", label: "Voice timings" },
           { key: "visual_assignment", label: "Visual selection" },
           { key: "scene_review_ready", label: "Scene review ready" },
           { key: "approved", label: "Approved & locked" },
