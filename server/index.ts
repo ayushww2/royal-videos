@@ -589,6 +589,31 @@ app.post("/api/jobs/:jobId/assign-context-visuals", async (req, res) => {
   });
 });
 
+/** Split paragraph scenes into one scene per sentence. Keeps the paragraph picture. */
+app.post("/api/jobs/:jobId/split-paragraph-scenes", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  if (job.timelineLock?.locked) {
+    return res.status(400).json({ error: "Timeline is locked. Unlock before splitting scenes." });
+  }
+  try {
+    const { splitJobParagraphsIntoSentences } = await import("./visualIntelligence/whisperLineScenes.js");
+    const { scenes, paragraphs } = await splitJobParagraphsIntoSentences(job);
+    const durations = scenes.map((scene) => scene.duration);
+    res.json({
+      ok: true,
+      paragraphs,
+      lineCount: scenes.length,
+      status: job.status,
+      avgDuration: Number((durations.reduce((sum, n) => sum + n, 0) / scenes.length).toFixed(2)),
+      first: scenes[0],
+      last: scenes[scenes.length - 1],
+    });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 /** Write one scene per script line from the saved Whisper alignment. No visuals. */
 app.post("/api/jobs/:jobId/whisper-line-scenes", async (req, res) => {
   const job = await loadJob(req.params.jobId);
