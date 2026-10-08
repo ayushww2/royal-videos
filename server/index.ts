@@ -61,6 +61,7 @@ import {
 import type { ApprovedVisual, JobRecord, NicheStyle, TimelineScene } from "../shared/visualIntelligence.js";
 import { isRoyalFinalNiche } from "../shared/visualIntelligence.js";
 import { JOB_STATUS_LABELS, WORDS_PER_MINUTE } from "../shared/visualIntelligence.js";
+import { retimeJobVoice } from "./visualIntelligence/retimeVoice.js";
 import type { EffectTimelineEvent } from "./visualIntelligence/effectPlanner.js";
 
 await ensureDirs();
@@ -566,6 +567,18 @@ app.post(
     });
   }
 );
+
+/** Speed the saved voiceover into 140–145 wpm and scale scene times. Pictures stay. */
+app.post("/api/jobs/:jobId/retime-voice", async (req, res) => {
+  try {
+    const requested = Number(req.body?.targetWpm);
+    const targetWpm = Number.isFinite(requested) && requested > 0 ? requested : 142.5;
+    const result = await retimeJobVoice(req.params.jobId, targetWpm);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
 
 /** GPT 6.1 plans each line; the server assigns library clips and stills. */
 app.post("/api/jobs/:jobId/assign-context-visuals", async (req, res) => {
