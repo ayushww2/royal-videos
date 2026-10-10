@@ -1,5 +1,6 @@
 import { runDirectorPipeline } from "./director/directorPipeline.js";
 import { runRoyalV2Pipeline } from "./royalV2/pipeline.js";
+import { runRoyalV3Pipeline } from "./royalV3/pipeline.js";
 import { loadJob, readJson, jobDataFile } from "../storage.js";
 import type { JobRecord, TimelineScene } from "../../shared/visualIntelligence.js";
 
@@ -14,6 +15,9 @@ export async function runVisualIntelligencePipeline(jobId: string): Promise<JobR
 
   if (job.niche === "Royal v2") {
     return runRoyalV2Pipeline(jobId);
+  }
+  if (job.niche === "Royal v3") {
+    return runRoyalV3Pipeline(jobId);
   }
 
   // Celebrity v1, Mystery v1, Space v1, War v1, Royal v1 → AI director brain

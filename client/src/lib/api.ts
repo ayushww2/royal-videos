@@ -25,6 +25,8 @@ export type LibrarySearchHit = {
   category?: string;
   description?: string;
   previewUrl?: string;
+  clipUrl?: string;
+  duration?: number;
 };
 
 export type TimelineScenePatch = {
@@ -120,6 +122,39 @@ export function swapTimelineVisual(jobId: string, sceneId: string, assetId: stri
       body: JSON.stringify({ sceneId, assetId }),
     }
   );
+}
+
+export type WebImageHit = {
+  title: string;
+  url: string;
+  thumbnail?: string;
+  source?: string;
+};
+
+export function searchEditorWeb(jobId: string, query: string) {
+  const params = new URLSearchParams({ q: query.trim(), limit: "40" });
+  return api<{ count: number; hits: WebImageHit[]; configured?: boolean; error?: string }>(
+    `/api/jobs/${jobId}/editor/web-search?${params.toString()}`
+  );
+}
+
+export function applyWebStill(
+  jobId: string,
+  sceneId: string,
+  imageUrl: string,
+  title: string,
+  thumbnailUrl?: string
+) {
+  return api<{ ok: boolean; scene: Scene }>(`/api/jobs/${jobId}/timeline/apply-web-still`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sceneId, imageUrl, thumbnailUrl, title }),
+  });
+}
+
+export function webImagePreviewUrl(jobId: string, imageUrl?: string): string {
+  if (!imageUrl) return "";
+  return `/api/jobs/${jobId}/editor/web-image?url=${encodeURIComponent(imageUrl)}`;
 }
 
 export function searchEditorLibrary(
