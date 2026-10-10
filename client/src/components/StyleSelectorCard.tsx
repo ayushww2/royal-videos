@@ -38,6 +38,12 @@ const STYLES = [
     description:
       "R2 library-first bulk assembly with exact people and places, strict repetition control, manager review, and timeline locking.",
   },
+  {
+    id: "Royal v3",
+    title: "Royal v3",
+    description:
+      "Final royal path. One spoken line is one scene. The voiceover times it, then the library picks the shot the way the Anne job was corrected.",
+  },
 ] as const;
 
 export function StyleSelectorCard({

@@ -1,18 +1,15 @@
 /**
  * Script-aligned VO timing.
  *
- * Preferred path on Railway: OpenAI Whisper (API) with word timestamps, then
- * map exact script tokens → timed words (forced-align style). Local Whisper
- * is not practical on the slim Railway image (no GPU / large model).
- *
- * Fallback: callers keep WPM stretch when no VO or transcription fails.
+ * AssemblyAI transcribes the voiceover with word timestamps, then the script
+ * tokens are mapped onto those words. Callers keep WPM stretch when no VO
+ * exists or transcription fails.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
-import OpenAI, { toFile } from "openai";
-import { getOpenAiKey, config, optionalEnv } from "../config.js";
+import { optionalEnv } from "../config.js";
 import { jobDataFile, readJson, writeJson, saveJob } from "../storage.js";
 import type { JobRecord } from "../../shared/visualIntelligence.js";
 
@@ -31,7 +28,7 @@ export type WindowTiming = {
 export type VoiceAlignmentReport = {
   jobId: string;
   status: "ready" | "failed" | "skipped";
-  source: "openai_whisper" | "none";
+  source: "assemblyai" | "openai_whisper" | "none";
   scriptWordCount: number;
   voiceoverPath?: string;
   voiceoverDurationSec?: number;
@@ -41,8 +38,9 @@ export type VoiceAlignmentReport = {
   error?: string;
 };
 
-const WHISPER_MAX_BYTES = 24 * 1024 * 1024;
+const COMPRESS_OVER_BYTES = 15 * 1024 * 1024;
 const ALIGN_LOOKAHEAD = 12;
+const ASSEMBLY_BASE = "https://api.assemblyai.com";
 
 function normalizeToken(token: string): string {
   return token
@@ -143,11 +141,12 @@ export function alignScriptToTimedWords(
  * Map meaning windows onto aligned script words (in order) and produce
  * contiguous beat timings locked to the VO clock.
  */
-export function timingsForWindows(
+/** First spoken word through last spoken word. Pauses stay outside the scene. */
+export function spokenSpansForWindows(
   windows: string[],
   alignedWords: TimedWord[],
   totalDurationSec: number
-): WindowTiming[] {
+): Array<{ start: number; end: number }> {
   if (!windows.length) return [];
 
   let cursor = 0;
@@ -171,7 +170,7 @@ export function timingsForWindows(
     if (slice.length) {
       raw.push({
         start: Math.max(0, slice[0].start),
-        end: Math.max(slice[0].start + 0.2, slice[slice.length - 1].end),
+        end: Math.max(slice[0].start, slice[slice.length - 1].end),
       });
     } else {
       const fallbackStart = raw.length ? raw[raw.length - 1].end : 0;
@@ -182,6 +181,17 @@ export function timingsForWindows(
       });
     }
   }
+  return raw;
+}
+
+export function timingsForWindows(
+  windows: string[],
+  alignedWords: TimedWord[],
+  totalDurationSec: number
+): WindowTiming[] {
+  if (!windows.length) return [];
+
+  const raw = spokenSpansForWindows(windows, alignedWords, totalDurationSec);
 
   // Contiguous timeline: each beat ends where the next begins.
   const timings: WindowTiming[] = raw.map((span) => ({
@@ -223,20 +233,20 @@ function runFfmpeg(args: string[]): Promise<void> {
   });
 }
 
-async function prepareAudioForWhisper(
+async function prepareAudioForTranscription(
   inputPath: string
 ): Promise<{ path: string; cleanup?: () => void }> {
   const stat = fs.statSync(inputPath);
-  if (stat.size <= WHISPER_MAX_BYTES) {
+  if (stat.size <= COMPRESS_OVER_BYTES) {
     return { path: inputPath };
   }
 
   const outPath = path.join(
     path.dirname(inputPath),
-    `${path.basename(inputPath, path.extname(inputPath))}.whisper64k.mp3`
+    `${path.basename(inputPath, path.extname(inputPath))}.voice64k.mp3`
   );
   console.log(
-    `[voice-alignment] compressing ${path.basename(inputPath)} (${(stat.size / 1e6).toFixed(1)}MB) for Whisper`
+    `[voice-alignment] compressing ${path.basename(inputPath)} (${(stat.size / 1e6).toFixed(1)}MB) before upload`
   );
   await runFfmpeg([
     "-y",
@@ -251,17 +261,6 @@ async function prepareAudioForWhisper(
     "64k",
     outPath,
   ]);
-  const outStat = fs.statSync(outPath);
-  if (outStat.size > WHISPER_MAX_BYTES) {
-    try {
-      fs.unlinkSync(outPath);
-    } catch {
-      /* ignore */
-    }
-    throw new Error(
-      `Voiceover still too large for Whisper after compression (${(outStat.size / 1e6).toFixed(1)}MB)`
-    );
-  }
   return {
     path: outPath,
     cleanup: () => {
@@ -274,24 +273,14 @@ async function prepareAudioForWhisper(
   };
 }
 
-function whisperApiKey(): string {
-  // Prefer a dedicated OpenAI key for /audio/transcriptions (ContactBox chat proxy often lacks it).
-  return optionalEnv("OPENAI_WHISPER_API_KEY") || getOpenAiKey();
+function assemblyApiKey(): string {
+  const key = optionalEnv("ASSEMBLYAI_API_KEY");
+  if (!key) throw new Error("ASSEMBLYAI_API_KEY is not set");
+  return key;
 }
 
-function whisperClient(): OpenAI {
-  const whisperBase =
-    optionalEnv("OPENAI_WHISPER_BASE_URL") || config.openaiBaseUrl;
-  return new OpenAI({
-    apiKey: whisperApiKey(),
-    baseURL: whisperBase,
-    maxRetries: 3,
-    timeout: 600_000,
-  });
-}
-
-function whisperModel(): string {
-  return optionalEnv("OPENAI_WHISPER_MODEL") || "whisper-1";
+function assemblyModel(): string {
+  return optionalEnv("ASSEMBLYAI_SPEECH_MODEL") || "universal-3-5-pro";
 }
 
 function voiceAlignmentEnabled(): boolean {
@@ -300,23 +289,17 @@ function voiceAlignmentEnabled(): boolean {
   return !/^(0|false|off|no)$/i.test(raw);
 }
 
-type WhisperVerbose = {
-  text?: string;
-  duration?: number;
-  words?: Array<{ word?: string; text?: string; start?: number; end?: number }>;
-};
-
-/** Max parallel Whisper uploads (default 1). Env: WHISPER_CONCURRENCY */
-function whisperConcurrency(): number {
-  const value = Number(process.env.WHISPER_CONCURRENCY || "1");
-  return Math.max(1, Math.min(3, Number.isFinite(value) ? Math.floor(value) : 1));
+/** Max parallel transcriptions (default 4). Env: ASSEMBLYAI_CONCURRENCY */
+export function transcriptionConcurrency(): number {
+  const value = Number(process.env.ASSEMBLYAI_CONCURRENCY || "4");
+  return Math.max(1, Math.min(6, Number.isFinite(value) ? Math.floor(value) : 4));
 }
 
 const whisperWaiters: Array<() => void> = [];
 let whisperActive = 0;
 
 async function withWhisperSlot<T>(fn: () => Promise<T>): Promise<T> {
-  if (whisperActive >= whisperConcurrency()) {
+  if (whisperActive >= transcriptionConcurrency()) {
     await new Promise<void>((resolve) => whisperWaiters.push(resolve));
   }
   whisperActive += 1;
@@ -329,44 +312,110 @@ async function withWhisperSlot<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+type AssemblyWord = { text?: string; start?: number; end?: number };
+type AssemblyTranscript = {
+  id?: string;
+  status?: string;
+  error?: string;
+  audio_duration?: number;
+  speech_model_used?: string;
+  words?: AssemblyWord[];
+};
+
+async function assemblyFetch(url: string, init: RequestInit): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set("authorization", assemblyApiKey());
+  let lastError = "";
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const res = await fetch(url, { ...init, headers });
+    if (res.ok || (res.status < 500 && res.status !== 429)) return res;
+    lastError = await res.text();
+    await new Promise((resolve) => setTimeout(resolve, 800 * 2 ** attempt));
+  }
+  throw new Error(`AssemblyAI ${init.method || "GET"} failed: ${lastError.slice(0, 240)}`);
+}
+
+async function uploadToAssembly(filePath: string): Promise<string> {
+  const stat = fs.statSync(filePath);
+  const res = await assemblyFetch(`${ASSEMBLY_BASE}/v2/upload`, {
+    method: "POST",
+    headers: { "content-type": "application/octet-stream" },
+    body: createReadStream(filePath),
+    // Node fetch requires duplex when the body is a stream.
+    duplex: "half",
+  } as unknown as RequestInit);
+  if (!res.ok) {
+    throw new Error(`AssemblyAI upload failed (${res.status}): ${(await res.text()).slice(0, 240)}`);
+  }
+  const payload = (await res.json()) as { upload_url?: string };
+  if (!payload.upload_url) throw new Error("AssemblyAI upload did not return a URL");
+  console.log(`[voice-alignment] uploaded ${(stat.size / 1e6).toFixed(1)}MB`);
+  return payload.upload_url;
+}
+
 async function transcribeWithWordTimestamps(
   audioPath: string
 ): Promise<{ words: TimedWord[]; durationSec: number; model: string }> {
   return withWhisperSlot(async () => {
-    const prepared = await prepareAudioForWhisper(audioPath);
-    const model = whisperModel();
+    const prepared = await prepareAudioForTranscription(audioPath);
+    const requested = assemblyModel();
     try {
-      const openai = whisperClient();
-      const file = await toFile(createReadStream(prepared.path), path.basename(prepared.path));
-      const result = (await openai.audio.transcriptions.create({
-        file,
-        model,
-        response_format: "verbose_json",
-        timestamp_granularities: ["word"],
-      })) as unknown as WhisperVerbose;
+      const uploadUrl = await uploadToAssembly(prepared.path);
+      const submit = await assemblyFetch(`${ASSEMBLY_BASE}/v2/transcript`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          audio_url: uploadUrl,
+          speech_models: [requested, "universal-2"],
+          language_code: "en",
+        }),
+      });
+      if (!submit.ok) {
+        throw new Error(
+          `AssemblyAI transcript submit failed (${submit.status}): ${(await submit.text()).slice(0, 240)}`
+        );
+      }
+      const created = (await submit.json()) as AssemblyTranscript;
+      if (!created.id) throw new Error("AssemblyAI did not return a transcript id");
 
-      const words: TimedWord[] = (result.words || [])
+      const deadline = Date.now() + 12 * 60 * 1000;
+      let transcript: AssemblyTranscript = created;
+      while (transcript.status !== "completed" && transcript.status !== "error") {
+        if (Date.now() > deadline) throw new Error("AssemblyAI transcription timed out");
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const poll = await assemblyFetch(`${ASSEMBLY_BASE}/v2/transcript/${created.id}`, { method: "GET" });
+        if (!poll.ok) {
+          throw new Error(`AssemblyAI poll failed (${poll.status}): ${(await poll.text()).slice(0, 180)}`);
+        }
+        transcript = (await poll.json()) as AssemblyTranscript;
+      }
+      if (transcript.status === "error") {
+        throw new Error(transcript.error || "AssemblyAI transcription failed");
+      }
+
+      const words: TimedWord[] = (transcript.words || [])
         .map((w) => {
-          const text = String(w.word || w.text || "").trim();
-          const start = Number(w.start);
-          const end = Number(w.end);
-          if (!text || !Number.isFinite(start) || !Number.isFinite(end)) return null;
+          const text = String(w.text || "").trim();
+          const startMs = Number(w.start);
+          const endMs = Number(w.end);
+          if (!text || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
+          const start = startMs / 1000;
+          const end = endMs / 1000;
           return { text, start, end: Math.max(start + 0.04, end) };
         })
         .filter((w): w is TimedWord => Boolean(w));
 
-      if (!words.length) {
-        throw new Error(
-          "Whisper returned no word timestamps (proxy may not support timestamp_granularities)",
-        );
-      }
+      if (!words.length) throw new Error("AssemblyAI returned no word timestamps");
 
       const durationSec =
-        Number(result.duration) > 1
-          ? Number(result.duration)
+        Number(transcript.audio_duration) > 1
+          ? Number(transcript.audio_duration)
           : words[words.length - 1]?.end || 0;
-
-      return { words, durationSec, model };
+      return {
+        words,
+        durationSec,
+        model: transcript.speech_model_used || requested,
+      };
     } finally {
       prepared.cleanup?.();
     }
@@ -437,7 +486,7 @@ export async function ensureVoiceAlignment(job: JobRecord): Promise<VoiceAlignme
     const report: VoiceAlignmentReport = {
       jobId: job.jobId,
       status: "ready",
-      source: "openai_whisper",
+      source: "assemblyai",
       scriptWordCount,
       voiceoverPath: job.voiceoverPath,
       voiceoverDurationSec: totalDuration,
