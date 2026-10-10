@@ -10,10 +10,9 @@ import {
 } from "remotion";
 
 const STILLS = [
-  "overlays/transitions/preview-stills/cave.png",
-  "overlays/transitions/preview-stills/a.png",
-  "overlays/transitions/preview-stills/b.png",
-  "overlays/transitions/preview-stills/c.png",
+  "demo/roadblock.png",
+  "demo/statue.png",
+  "demo/research.png",
 ] as const;
 
 export type MotionDemo = {
