@@ -158,6 +158,12 @@ app.get("/api/health", (_req, res) => {
     elevenLabsConfigured: Boolean(process.env.ELEVENLABS_API_KEY?.trim()),
     elevenLabsVoiceId: process.env.ELEVENLABS_VOICE_ID?.trim() || DEFAULT_ELEVENLABS_VOICE_ID,
     elevenLabsModelId: process.env.ELEVENLABS_MODEL_ID?.trim() || DEFAULT_ELEVENLABS_MODEL_ID,
+    elevenLabsFootage: {
+      model: process.env.ELEVENLABS_IMAGE_MODEL?.trim() || "gpt-image-2.5-sunburst",
+      aspectRatio: process.env.ELEVENLABS_IMAGE_ASPECT_RATIO?.trim() || "16:9",
+      resolution: process.env.ELEVENLABS_IMAGE_RESOLUTION?.trim() || "1K",
+      quality: process.env.ELEVENLABS_IMAGE_QUALITY?.trim() || "low",
+    },
     shotstackMissing: renderer === "shotstack" && !renderApis.ok ? renderApis.missing : [],
     shotstackNote:
       renderer === "shotstack"
