@@ -40,6 +40,7 @@ import {
   INTRO_DURATION_SEC,
 } from './CinematicIntro';
 import type {ProductionTimelineEvent} from './productionRegistry';
+import {RoyalHouseCuts, ROYAL_HOUSE_CUTS_FRAMES} from './RoyalHouseCuts';
 
 /**
  * Remotion entry — production DocumentaryEdit uses the merged effect pack
@@ -177,6 +178,14 @@ export const RemotionRoot: React.FC = () => (
           ),
         };
       }}
+    />
+    <Composition
+      id="RoyalHouseCuts"
+      component={RoyalHouseCuts}
+      durationInFrames={ROYAL_HOUSE_CUTS_FRAMES}
+      fps={30}
+      width={1920}
+      height={1080}
     />
     <Composition
       id="DocumentaryEdit"
