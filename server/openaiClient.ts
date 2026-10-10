@@ -31,8 +31,28 @@ function isRetryableError(err: unknown): boolean {
     msg.includes("timeout") ||
     msg.includes("econnreset") ||
     msg.includes("fetch failed") ||
-    msg.includes("socket")
+    msg.includes("socket") ||
+    msg.includes("invalid json")
   );
+}
+
+function parseModelJson<T>(content: string): T {
+  const trimmed = content.trim();
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch {
+    const start = trimmed.indexOf("{");
+    const end = trimmed.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(trimmed.slice(start, end + 1)) as T;
+      } catch {
+        /* The model wrapped or cut the object. */
+      }
+    }
+    const preview = trimmed.replace(/\s+/g, " ").slice(0, 140);
+    throw new Error(`OpenAI returned invalid JSON: ${preview}`);
+  }
 }
 
 async function withRetries<T>(label: string, fn: () => Promise<T>, attempts = 6): Promise<T> {
@@ -79,11 +99,7 @@ export async function chatJson<T>(params: {
     if (!content) {
       throw new Error("OpenAI returned empty response");
     }
-    try {
-      return JSON.parse(content) as T;
-    } catch {
-      throw new Error("OpenAI returned invalid JSON");
-    }
+    return parseModelJson<T>(content);
   });
 }
 

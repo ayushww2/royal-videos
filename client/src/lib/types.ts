@@ -117,6 +117,7 @@ export interface Scene {
   selectedVisualId: string;
   confidenceScores?: Record<string, number>;
   previewUrl?: string;
+  secondPreviewUrl?: string;
   fromApprovedLibrary?: boolean;
   repeatDistanceWarning?: boolean;
   rawFootageUsed?: boolean;
