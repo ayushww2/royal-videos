@@ -1,14 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { ErrorState, LoadingState, StatusBadge } from "../components/Badges";
 import { api, formatDate } from "../lib/api";
 import { JobRecord, friendlyStatus } from "../lib/types";
 
+function submittedDay(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function dayLabel(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
+}
+
 export function JobsPage() {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [day, setDay] = useState("all");
 
   async function load() {
     const data = await api<{ jobs: JobRecord[] }>("/api/jobs");
@@ -20,6 +41,18 @@ export function JobsPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const days = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const job of jobs) {
+      const key = submittedDay(job.createdAt);
+      if (!key) continue;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [jobs]);
+
+  const visible = day === "all" ? jobs : jobs.filter((job) => submittedDay(job.createdAt) === day);
 
   async function remove(jobId: string) {
     if (!confirm("Delete this job? Reports can be kept on disk.")) return;
@@ -46,6 +79,17 @@ export function JobsPage() {
         <LoadingState />
       ) : (
         <div className="card card-pad">
+          <div className="field" style={{ maxWidth: 360, marginBottom: 12 }}>
+            <label htmlFor="job-day">Submitted on</label>
+            <select id="job-day" value={day} onChange={(e) => setDay(e.target.value)}>
+              <option value="all">All dates ({jobs.length})</option>
+              {days.map(([key, count]) => (
+                <option key={key} value={key}>
+                  {dayLabel(key)} ({count})
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="table-wrap">
             <table className="data">
               <thead>
@@ -61,7 +105,7 @@ export function JobsPage() {
                 </tr>
               </thead>
               <tbody>
-                {jobs.map((j) => (
+                {visible.map((j) => (
                   <tr key={j.jobId}>
                     <td>{j.title}</td>
                     <td className="muted">{j.niche}</td>
@@ -92,10 +136,10 @@ export function JobsPage() {
                     </td>
                   </tr>
                 ))}
-                {!jobs.length && (
+                {!visible.length && (
                   <tr>
                     <td colSpan={8} className="muted">
-                      No jobs yet.
+                      {jobs.length ? "No jobs submitted on this date." : "No jobs yet."}
                     </td>
                   </tr>
                 )}
