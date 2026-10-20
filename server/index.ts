@@ -1226,6 +1226,40 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/use-source", async (req, res) => {
   res.json({ ok: true, scene });
 });
 
+app.post("/api/jobs/:jobId/scene-times", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  const updates = (req.body?.times || []) as Array<{ sceneId?: string; startTime?: number; endTime?: number }>;
+  if (!Array.isArray(updates) || !updates.length) {
+    return res.status(400).json({ error: "times array is required" });
+  }
+  const byId = new Map(
+    updates
+      .filter((item) => item.sceneId && Number.isFinite(item.startTime) && Number.isFinite(item.endTime))
+      .map((item) => [item.sceneId as string, item])
+  );
+  const scenes = await loadScenes(job.jobId);
+  let changed = 0;
+  for (const scene of scenes) {
+    const next = byId.get(scene.sceneId);
+    if (!next) continue;
+    const start = Number(next.startTime);
+    const end = Number(next.endTime);
+    if (end <= start) continue;
+    scene.startTime = start;
+    scene.endTime = end;
+    scene.duration = Number((end - start).toFixed(3));
+    changed += 1;
+  }
+  const assignmentPath = jobDataFile("visual-intelligence-final-assignment", job.jobId);
+  const existing = (await readJson<Record<string, unknown>>(assignmentPath)) || { jobId: job.jobId };
+  await writeJson(assignmentPath, { ...existing, scenes });
+  const royalPath = jobDataFile("royal-v2-final-assignment", job.jobId);
+  const royal = await readJson<Record<string, unknown>>(royalPath);
+  if (royal) await writeJson(royalPath, { ...royal, scenes });
+  res.json({ ok: true, changed, scenes: scenes.length });
+});
+
 app.post("/api/jobs/:jobId/approve-all", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
