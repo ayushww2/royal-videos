@@ -4,6 +4,7 @@ import {
   loadTimelineForEditor,
   patchTimelineScenes,
   searchLibraryForEditor,
+  applyWebStill,
   swapSceneVisual,
 } from "./timelineEditor.js";
 import { royalAssetPreviewUrl } from "./royalV2/library.js";
@@ -59,6 +60,28 @@ export function registerKnowledgeEditorRoutes(app: Express): void {
         jobId: req.params.jobId,
         sceneId,
         assetId,
+      });
+      const payload = await loadTimelineForEditor(req.params.jobId);
+      const scene = payload.scenes.find((s) => s.sceneId === sceneId) || result.scene;
+      res.json({ ok: true, scene, approved: result.approved, scenes: payload.scenes });
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post("/api/jobs/:jobId/timeline/apply-web-still", async (req, res) => {
+    try {
+      const sceneId = String(req.body?.sceneId || "");
+      const imageUrl = String(req.body?.imageUrl || "");
+      const title = String(req.body?.title || "");
+      const thumbnailUrl = String(req.body?.thumbnailUrl || "");
+      if (!sceneId || !imageUrl) return res.status(400).json({ error: "sceneId and imageUrl required" });
+      const result = await applyWebStill({
+        jobId: req.params.jobId,
+        sceneId,
+        imageUrl,
+        thumbnailUrl,
+        title,
       });
       const payload = await loadTimelineForEditor(req.params.jobId);
       const scene = payload.scenes.find((s) => s.sceneId === sceneId) || result.scene;

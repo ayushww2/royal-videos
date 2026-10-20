@@ -151,7 +151,7 @@ export function JobStatusPage() {
   }
 
   const pct =
-    job.niche === "Royal v2"
+    job.niche === "Royal v2" || job.niche === "Royal v3"
       ? job.progressPercent ?? 0
       : pipelinePercent(job.status, job.lastSuccessfulStatus);
   const ready = ["ready_for_scene_review", "scene_review_ready", "approved", "completed"].includes(

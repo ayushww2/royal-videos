@@ -20,6 +20,7 @@ import {
   shouldHoldAutoApproveForSoftUnsure,
 } from "./softApproval.js";
 import { skipGptExceptJudge } from "../pipelineMode.js";
+import { whisperLineScenesOnly } from "../whisperLineScenes.js";
 import type {
   JobRecord,
   PipelineStats,
@@ -100,6 +101,12 @@ export async function runRoyalV2Pipeline(jobId: string): Promise<JobRecord> {
   const job = await loadJob(jobId);
   if (!job) throw new Error(`Job not found: ${jobId}`);
   if (job.niche !== "Royal v2") throw new Error("Royal v2 pipeline requires a Royal v2 job");
+  if (whisperLineScenesOnly(job.jobId)) {
+    const { publishWhisperLineScenes } = await import("../whisperLineScenes.js");
+    const scenes = await publishWhisperLineScenes(job);
+    console.log(`[royal-v2] whisper line scenes only ${job.jobId}: ${scenes.length} lines`);
+    return (await loadJob(jobId)) || job;
+  }
   const stageStarted = new Map<JobRecord["status"], number>();
 
   const update = async (status: JobRecord["status"], patch?: Partial<JobRecord>) => {

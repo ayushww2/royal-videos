@@ -3,7 +3,7 @@ import path from "node:path";
 import { config, optionalEnv, getRendererForJob, type FinalRenderer } from "../config.js";
 import { jobDataFile, writeJson, readJson, loadJob, saveJob } from "../storage.js";
 import { runFinalQA } from "../visualIntelligence/finalQA.js";
-import type { TimelineScene, ApprovedVisual } from "../../shared/visualIntelligence.js";
+import { isRoyalFinalNiche, type TimelineScene, type ApprovedVisual } from "../../shared/visualIntelligence.js";
 import type { EffectTimelineEvent } from "../visualIntelligence/effectPlanner.js";
 import { buildRemotionInputProps, renderRemotionMp4 } from "./remotionRender.js";
 import { toShotstackPublicUrl } from "./shotstackEffectMapper.js";
@@ -41,15 +41,14 @@ export async function renderJob(
   }
 
   const assignment =
-    job.niche === "Royal v2"
+    isRoyalFinalNiche(job.niche)
       ? null
       : await readJson<{ scenes: TimelineScene[] }>(
           jobDataFile("visual-intelligence-final-assignment", jobId)
         );
-  const scenes =
-    job.niche === "Royal v2"
-      ? await loadVerifiedRoyalV2Timeline(jobId)
-      : assignment?.scenes || [];
+  const scenes = isRoyalFinalNiche(job.niche)
+    ? await loadVerifiedRoyalV2Timeline(jobId)
+    : assignment?.scenes || [];
   if (!scenes.length) throw new Error("No Scene Review assignment found");
 
   const qa = await runFinalQA(jobId, scenes);

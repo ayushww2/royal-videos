@@ -18,7 +18,17 @@ export function ProgressSteps({
   niche?: string;
 }) {
   const steps =
-    niche === "Royal v2"
+    niche === "Royal v3"
+      ? [
+          { key: "queued", label: "Queued" },
+          { key: "script_analysis", label: "Voice timings" },
+          { key: "visual_assignment", label: "Visual selection" },
+          { key: "scene_review_ready", label: "Scene review ready" },
+          { key: "approved", label: "Approved & locked" },
+          { key: "rendering", label: "Rendering" },
+          { key: "completed", label: "Completed" },
+        ] as Array<{ key: JobStatus; label: string }>
+      : niche === "Royal v2"
       ? [
           { key: "queued", label: "Queued" },
           { key: "script_analysis", label: "Script analysis" },
