@@ -19,6 +19,7 @@ import {
   DEFAULT_ELEVENLABS_MODEL_ID,
 } from "./elevenlabsClient.js";
 import { ensureDirs, jobDir, loadJob, listJobs, saveJob, readJson, writeJson, jobDataFile } from "./storage.js";
+import { extractDocxText, isDocxUpload } from "./scriptDocx.js";
 import { loadScenes } from "./visualIntelligence/pipeline.js";
 import {
   enqueuePipelineJob,
@@ -283,10 +284,18 @@ app.post("/api/jobs", upload.fields([
   let script = String(req.body.script || "");
   const scriptFile = files?.scriptFile?.[0];
   if (scriptFile) {
-    script = fs.readFileSync(scriptFile.path, "utf8");
+    if (isDocxUpload(scriptFile.originalname || scriptFile.filename || "")) {
+      try {
+        script = await extractDocxText(fs.readFileSync(scriptFile.path));
+      } catch {
+        return res.status(400).json({ error: "Could not read that .docx. Save it as a Word document and try again." });
+      }
+    } else {
+      script = fs.readFileSync(scriptFile.path, "utf8");
+    }
   }
   if (!script.trim()) {
-    return res.status(400).json({ error: "Script text or .txt upload is required" });
+    return res.status(400).json({ error: "Script text, .txt, or .docx upload is required" });
   }
 
   const niche = (req.body.niche || "Celebrity v1") as NicheStyle;
