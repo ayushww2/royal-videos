@@ -61,6 +61,7 @@ Do not pass on clothing, palaces, or captions alone. action is keep when pass is
       },
       { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
     ],
+    model: "gpt-6.1-sol",
     temperature: 0,
     onDelta: () => undefined,
   });
