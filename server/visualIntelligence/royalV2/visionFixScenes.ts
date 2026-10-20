@@ -30,10 +30,6 @@ function namedPeople(text: string): string[] {
   return PEOPLE.filter((person) => person.pattern.test(text)).map((person) => person.label);
 }
 
-function personOfReason(reason: string): string {
-  return reason.split(":")[0]?.trim() || "";
-}
-
 function personMatches(assetPerson: string, wanted: string[]): boolean {
   const hay = assetPerson.toLowerCase();
   return wanted.some((person) => {
@@ -49,25 +45,29 @@ function thumbUrl(asset: LibraryAsset): string | undefined {
 }
 
 async function judgeImage(scene: TimelineScene, imageUrl: string, wanted: string[]): Promise<Verdict> {
-  const result = await chatJsonVisionStream<{ pass?: boolean; reason?: string; seen?: string }>({
-    system: `You check one documentary still. Decide if the required person is actually visible.
-Return JSON {"pass": true|false, "seen": "who you see", "reason": "short"}.
-pass is true only when at least one required person is clearly in the frame.
-Historical figures count only if that historical person is visible, not a modern royal with a similar name.
-Do not pass on clothing, palaces, or captions alone.`,
+  const result = await chatJsonVisionStream<{ pass?: boolean; reason?: string; seen?: string; action?: string }>({
+    system: `You see one current frame only. Use the narration line as the overall context.
+Decide whether the intended person is actually visible. If the line names no person, decide whether this frame shows the action or subject of the line.
+Return JSON {"pass": true|false, "seen": "who or what is in the frame", "reason": "short", "action": "keep"|"replace"}.
+pass is true only when the intended person is clearly visible, or when no person is named and the frame matches the line.
+A historical person passes only if that historical person is visible, not a modern royal with a similar name.
+Do not pass on clothing, palaces, or captions alone. action is keep when pass is true, otherwise replace.`,
     user: [
       {
         type: "text",
-        text: `Required: ${wanted.join(" or ")}. Line: ${scene.narrationText.slice(0, 240)}`,
+        text: wanted.length
+          ? `Intended person: ${wanted.join(" or ")}. Line: ${scene.narrationText.slice(0, 280)}`
+          : `No named person. Judge the line itself. Line: ${scene.narrationText.slice(0, 280)}`,
       },
       { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
     ],
     temperature: 0,
     onDelta: () => undefined,
   });
+  const pass = Boolean(result.pass);
   return {
-    pass: Boolean(result.pass),
-    reason: String(result.reason || "").slice(0, 180),
+    pass,
+    reason: String(result.reason || result.action || "").slice(0, 180),
     seen: String(result.seen || "").slice(0, 80),
   };
 }
@@ -103,17 +103,36 @@ export async function visionFixJob(jobId: string): Promise<{ checked: number; ke
   let kept = 0;
   let replaced = 0;
   let failed = 0;
+  const progressPath = jobDataFile("royal-v2-soft-approval", jobId);
+  const writeProgress = async () => {
+    await writeJson(progressPath, {
+      jobId,
+      mode: "all-scenes-first-frame",
+      total: scenes.length,
+      checked,
+      kept,
+      replaced,
+      failed,
+      createdAt: new Date().toISOString(),
+    });
+  };
+
+  await writeProgress();
 
   for (let index = 0; index < scenes.length; index++) {
     const scene = scenes[index];
     const wanted = namedPeople(scene.narrationText);
-    if (!wanted.length || !scene.selectedVisualId) continue;
+    if (!scene.selectedVisualId) {
+      failed += 1;
+      continue;
+    }
     const current = byId.get(scene.selectedVisualId);
-    const currentPerson = current?.person || personOfReason(scene.reasonSelected || "");
-    if (current && personMatches(current.person, wanted)) continue;
 
     const currentUrl = current ? thumbUrl(current) : approved.get(scene.selectedVisualId)?.thumbnail || approved.get(scene.selectedVisualId)?.filePathOrUrl;
-    if (!currentUrl || !/^https:\/\//i.test(currentUrl)) continue;
+    if (!currentUrl || !/^https:\/\//i.test(currentUrl)) {
+      failed += 1;
+      continue;
+    }
 
     checked += 1;
     let verdict: Verdict;
@@ -134,12 +153,12 @@ export async function visionFixJob(jobId: string): Promise<{ checked: number; ke
       continue;
     }
 
-    const alternates = assets
+    const alternates = wanted.length ? assets
       .filter((asset) => personMatches(asset.person, wanted))
       .filter((asset) => asset.assetId !== scene.selectedVisualId)
       .filter((asset) => asset.mediaType === "image" || (asset.duration || 0) + 0.05 >= (scene.duration || 1))
       .filter((asset) => Boolean(thumbUrl(asset)))
-      .slice(0, 3);
+      .slice(0, 3) : [];
 
     let swapped = false;
     for (const asset of alternates) {
@@ -195,6 +214,7 @@ export async function visionFixJob(jobId: string): Promise<{ checked: number; ke
     }
     if (checked % 10 === 0) {
       await writeJson(assignmentPath, { ...existing, scenes });
+      await writeProgress();
     }
   }
 
@@ -208,14 +228,7 @@ export async function visionFixJob(jobId: string): Promise<{ checked: number; ke
     source: "Vision fix for wrong-person scenes",
     createdAt: new Date().toISOString(),
   });
-  await writeJson(jobDataFile("royal-v2-soft-approval", jobId), {
-    jobId,
-    checked,
-    kept,
-    replaced,
-    failed,
-    createdAt: new Date().toISOString(),
-  });
+  await writeProgress();
   job.updatedAt = new Date().toISOString();
   await saveJob(job);
   console.log(`[vision-fix] done ${jobId} checked=${checked} kept=${kept} replaced=${replaced} failed=${failed}`);
