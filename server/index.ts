@@ -1226,6 +1226,15 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/use-source", async (req, res) => {
   res.json({ ok: true, scene });
 });
 
+app.post("/api/jobs/:jobId/fill-visuals", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  res.json({ ok: true, started: true, jobId: job.jobId });
+  void import("./visualIntelligence/royalV2/fillTimedScenes.js")
+    .then(({ fillTimedScenes }) => fillTimedScenes(job.jobId))
+    .catch((err) => console.error("[fill] failed", job.jobId, err));
+});
+
 app.post("/api/jobs/:jobId/scene-times", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
