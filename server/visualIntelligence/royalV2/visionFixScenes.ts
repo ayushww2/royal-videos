@@ -4,7 +4,7 @@ import type { LibraryAsset } from "../../library/types.js";
 import type { ApprovedVisual, TimelineScene } from "../../../shared/visualIntelligence.js";
 import { loadRoyalLibraryAssets, royalAssetUrl } from "./library.js";
 
-const VISION_MODE = "person-context-gpt-6.1-sol";
+const VISION_MODE = "scene-match-gpt-6.1-sol";
 
 const MALE = new Set(["King Charles", "Prince William", "Prince Harry", "Prince Andrew", "Prince George", "Prince Louis", "Prince Edward"]);
 const FEMALE = new Set(["Queen Camilla", "Catherine, Princess of Wales", "Princess Diana", "Princess Anne", "Meghan, Duchess of Sussex", "Princess Charlotte", "Princess Beatrice", "Princess Eugenie", "Sarah Ferguson", "Queen Elizabeth"]);
@@ -69,15 +69,18 @@ function thumbUrl(asset: LibraryAsset): string | undefined {
 
 async function judgeImage(scene: TimelineScene, imageUrl: string, wanted: string[], context: string): Promise<Verdict> {
   const result = await chatJsonVisionStream<{ pass?: boolean; reason?: string; seen?: string; action?: string }>({
-    system: `You see one current frame only. The person being talked about must be visible.
-Return JSON {"pass": true|false, "seen": "who is in the frame", "reason": "short", "action": "keep"|"replace"}.
-pass is true only when the required person is clearly visible in this frame.
-A historical person passes only if that historical person is visible, not a modern royal with a similar name.
-Do not pass on clothing, a palace, or a caption alone. action is keep when pass is true, otherwise replace.`,
+    system: `You are the picture editor for one documentary scene. You see one current frame only.
+Decide if this frame is the right visual for the spoken line, using the previous line as context.
+Return JSON {"pass": true|false, "seen": "what the frame actually shows", "reason": "short", "action": "keep"|"replace"}.
+pass is true only when a viewer would accept this frame for this line.
+If the line is about a person, that person must be visible. She, he, and his wife mean the person from context, not a different royal.
+A historical person passes only if that historical person is visible. Queen Elizabeth The Queen Mother is not Queen Camilla and not a modern group photo.
+If the line is about a place, a letter, an order, a year, or an action, the frame must show that, not just any royal.
+Do not pass on clothing, a caption, or a generic palace when the line is specific. action is keep when pass is true, otherwise replace.`,
     user: [
       {
         type: "text",
-        text: `Required person: ${wanted.join(" or ")}.\nThis line: ${scene.narrationText.slice(0, 280)}\nContext: ${context.slice(0, 280)}`,
+        text: `${wanted.length ? `People this line is about: ${wanted.join(" or ")}.` : "No single named person. Match what the line is about."}\nThis line: ${scene.narrationText.slice(0, 320)}\nPrevious line: ${context.slice(0, 240)}`,
       },
       { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
     ],
@@ -164,7 +167,6 @@ async function runVisionFixJob(jobId: string): Promise<{ checked: number; kept: 
     for (const person of namedPeople(scene.narrationText)) {
       if (FEMALE.has(person) || MALE.has(person)) recent.push(person);
     }
-    if (!wanted.length) continue;
     if (!scene.selectedVisualId) {
       failed += 1;
       continue;
@@ -197,12 +199,20 @@ async function runVisionFixJob(jobId: string): Promise<{ checked: number; kept: 
       continue;
     }
 
-    const alternates = wanted.length ? assets
-      .filter((asset) => personMatches(asset.person, wanted))
+    const lineWords = scene.narrationText.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length > 3);
+    const alternates = assets
       .filter((asset) => asset.assetId !== scene.selectedVisualId)
+      .filter((asset) => !wanted.length || personMatches(asset.person, wanted))
       .filter((asset) => asset.mediaType === "image" || (asset.duration || 0) + 0.05 >= (scene.duration || 1))
       .filter((asset) => Boolean(thumbUrl(asset)))
-      .slice(0, 3) : [];
+      .map((asset) => {
+        const hay = `${asset.person} ${asset.title || ""} ${asset.description || ""}`.toLowerCase();
+        const words = lineWords.filter((word) => hay.includes(word)).length;
+        return { asset, words };
+      })
+      .sort((a, b) => b.words - a.words)
+      .slice(0, 3)
+      .map((item) => item.asset);
 
     let swapped = false;
     for (const asset of alternates) {
