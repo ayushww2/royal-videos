@@ -210,9 +210,13 @@ app.patch("/api/jobs/:jobId", async (req, res) => {
   const body = (req.body || {}) as {
     customEditInstructions?: string | null;
     title?: string;
+    script?: string;
   };
   if (typeof body.title === "string" && body.title.trim()) {
     job.title = body.title.trim();
+  }
+  if (typeof body.script === "string" && body.script.trim()) {
+    job.script = body.script.replace(/\r\n/g, "\n").trim();
   }
   if (body.customEditInstructions !== undefined) {
     const text = String(body.customEditInstructions || "").trim();
