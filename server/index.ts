@@ -1248,7 +1248,11 @@ app.post("/api/jobs/:jobId/fill-visuals", async (req, res) => {
   if (!job) return res.status(404).json({ error: "Job not found" });
   res.json({ ok: true, started: true, jobId: job.jobId });
   void import("./visualIntelligence/royalV2/fillTimedScenes.js")
-    .then(({ fillTimedScenes }) => fillTimedScenes(job.jobId))
+    .then(async ({ fillTimedScenes }) => {
+      await fillTimedScenes(job.jobId);
+      const { visionFixJob } = await import("./visualIntelligence/royalV2/visionFixScenes.js");
+      await visionFixJob(job.jobId);
+    })
     .catch((err) => console.error("[fill] failed", job.jobId, err));
 });
 
@@ -1631,6 +1635,10 @@ app.listen(config.port, () => {
 void resumePipelineQueue().catch((error) => {
   console.error("[pipeline-queue] resume failed", error);
 });
+
+void import("./visualIntelligence/royalV2/visionFixScenes.js")
+  .then(({ resumeVisionPasses }) => resumeVisionPasses())
+  .catch((error) => console.error("[vision-fix] resume failed", error));
 
 // silence unused import in case tree shaking
 void assembleTimeline;

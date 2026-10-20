@@ -1,4 +1,4 @@
-import { jobDataFile, loadJob, readJson, saveJob, writeJson } from "../../storage.js";
+import { jobDataFile, listJobs, loadJob, readJson, saveJob, writeJson } from "../../storage.js";
 import { chatJsonVisionStream } from "../../openaiClient.js";
 import type { LibraryAsset } from "../../library/types.js";
 import type { ApprovedVisual, TimelineScene } from "../../../shared/visualIntelligence.js";
@@ -87,7 +87,21 @@ function blankScores(): ApprovedVisual["confidenceScores"] {
   };
 }
 
+const runningVision = new Set<string>();
+
 export async function visionFixJob(jobId: string): Promise<{ checked: number; kept: number; replaced: number; failed: number }> {
+  if (runningVision.has(jobId)) {
+    return { checked: 0, kept: 0, replaced: 0, failed: 0 };
+  }
+  runningVision.add(jobId);
+  try {
+    return await runVisionFixJob(jobId);
+  } finally {
+    runningVision.delete(jobId);
+  }
+}
+
+async function runVisionFixJob(jobId: string): Promise<{ checked: number; kept: number; replaced: number; failed: number }> {
   const job = await loadJob(jobId);
   if (!job) throw new Error("Job not found");
   const assignmentPath = jobDataFile("visual-intelligence-final-assignment", jobId);
@@ -104,6 +118,7 @@ export async function visionFixJob(jobId: string): Promise<{ checked: number; ke
   let replaced = 0;
   let failed = 0;
   const progressPath = jobDataFile("royal-v2-soft-approval", jobId);
+  let complete = false;
   const writeProgress = async () => {
     await writeJson(progressPath, {
       jobId,
@@ -113,6 +128,7 @@ export async function visionFixJob(jobId: string): Promise<{ checked: number; ke
       kept,
       replaced,
       failed,
+      complete,
       createdAt: new Date().toISOString(),
     });
   };
@@ -228,9 +244,43 @@ export async function visionFixJob(jobId: string): Promise<{ checked: number; ke
     source: "Vision fix for wrong-person scenes",
     createdAt: new Date().toISOString(),
   });
+  complete = true;
   await writeProgress();
   job.updatedAt = new Date().toISOString();
   await saveJob(job);
   console.log(`[vision-fix] done ${jobId} checked=${checked} kept=${kept} replaced=${replaced} failed=${failed}`);
   return { checked, kept, replaced, failed };
+}
+
+/** After a restart, finish first-frame checks for review-ready jobs that never completed one. */
+export async function resumeVisionPasses(): Promise<void> {
+  const jobs = await listJobs();
+  const pending = jobs.filter(
+    (job) =>
+      (job.niche === "Royal v2" || job.niche === "Royal v3") &&
+      (job.status === "scene_review_ready" || job.status === "ready_for_scene_review")
+  );
+  const queue: string[] = [];
+  for (const job of pending) {
+    const report = await readJson<{ mode?: string; complete?: boolean }>(
+      jobDataFile("royal-v2-soft-approval", job.jobId)
+    );
+    const done = report?.mode === "all-scenes-first-frame" && report.complete === true;
+    if (!done) queue.push(job.jobId);
+  }
+  console.log(`[vision-fix] resume ${queue.length} jobs`);
+  const concurrency = 2;
+  let cursor = 0;
+  async function worker() {
+    while (cursor < queue.length) {
+      const jobId = queue[cursor];
+      cursor += 1;
+      try {
+        await visionFixJob(jobId);
+      } catch (error) {
+        console.error("[vision-fix] resume failed", jobId, error);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, () => worker()));
 }
