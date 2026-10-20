@@ -31,9 +31,6 @@ export async function searchGoogleImages(
   url.searchParams.set("api_key", key);
   url.searchParams.set("hl", "en");
   url.searchParams.set("gl", "us");
-  url.searchParams.set("safe", "active");
-  url.searchParams.set("size", "large");
-  url.searchParams.set("aspect_ratio", "wide");
 
   const res = await fetch(url);
   if (!res.ok) {
@@ -43,20 +40,37 @@ export async function searchGoogleImages(
   const data = (await res.json()) as {
     images?: Array<{
       title?: string;
+      link?: string;
       original?: { link?: string; width?: number; height?: number };
+      thumbnail?: string | { link?: string };
+      source?: { name?: string } | string;
+    }>;
+    image_results?: Array<{
+      title?: string;
+      original?: string;
       thumbnail?: string;
-      source?: { name?: string };
+      source?: string;
     }>;
   };
-  return (data.images || []).slice(0, Math.min(count, 20)).map((img) => ({
-    title: img.title || query,
-    url: img.original?.link || "",
+  const rows = data.images?.length ? data.images : (data.image_results || []).map((img) => ({
+    title: img.title,
+    original: { link: img.original },
     thumbnail: img.thumbnail,
-    width: img.original?.width,
-    height: img.original?.height,
-    source: img.source?.name,
-    provider: "google_images" as const,
-  })).filter((h) => h.url);
+    source: img.source,
+  }));
+  return rows.slice(0, Math.min(Math.max(count, 1), 40)).map((img) => {
+    const thumb = typeof img.thumbnail === "string" ? img.thumbnail : img.thumbnail?.link;
+    const source = typeof img.source === "string" ? img.source : img.source?.name;
+    return {
+      title: img.title || query,
+      url: img.original?.link || img.link || thumb || "",
+      thumbnail: thumb || img.original?.link || img.link,
+      width: img.original?.width,
+      height: img.original?.height,
+      source,
+      provider: "google_images" as const,
+    };
+  }).filter((h) => h.url || h.thumbnail);
 }
 
 export async function searchPexelsImages(

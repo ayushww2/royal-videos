@@ -61,9 +61,27 @@ export function NewJobPage() {
   async function onScriptFile(files: FileList | null) {
     const file = files?.[0];
     if (!file) return;
+    setError("");
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".txt") && !name.endsWith(".docx")) {
+      setError("Upload a .txt or .docx script.");
+      return;
+    }
     setScriptFile(file);
-    const text = await file.text();
-    setScript(text);
+    try {
+      if (name.endsWith(".docx")) {
+        const mammoth = await import("mammoth");
+        const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+        const text = result.value.replace(/\u0000/g, "").replace(/\r\n/g, "\n").trim();
+        if (!text) throw new Error("That Word file has no readable text.");
+        setScript(text);
+      } else {
+        setScript(await file.text());
+      }
+    } catch (err) {
+      setScriptFile(null);
+      setError(err instanceof Error ? err.message : "Could not read that script file.");
+    }
   }
 
   async function onSubmit(e: FormEvent) {
@@ -128,9 +146,9 @@ export function NewJobPage() {
             <textarea rows={12} value={script} onChange={(e) => setScript(e.target.value)} placeholder="Paste the full documentary script..." />
           </div>
           <UploadDropzone
-            label="Upload .txt script"
-            accept=".txt,text/plain"
-            note="Optional .txt upload fills the script field"
+            label="Upload .txt or .docx script"
+            accept=".txt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            note="Optional upload fills the script field. Word files keep one paragraph per line."
             onFiles={onScriptFile}
             files={scriptFile ? [scriptFile] : []}
           />

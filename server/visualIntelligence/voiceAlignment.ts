@@ -143,11 +143,12 @@ export function alignScriptToTimedWords(
  * Map meaning windows onto aligned script words (in order) and produce
  * contiguous beat timings locked to the VO clock.
  */
-export function timingsForWindows(
+/** First spoken word through last spoken word. Pauses stay outside the scene. */
+export function spokenSpansForWindows(
   windows: string[],
   alignedWords: TimedWord[],
   totalDurationSec: number
-): WindowTiming[] {
+): Array<{ start: number; end: number }> {
   if (!windows.length) return [];
 
   let cursor = 0;
@@ -171,7 +172,7 @@ export function timingsForWindows(
     if (slice.length) {
       raw.push({
         start: Math.max(0, slice[0].start),
-        end: Math.max(slice[0].start + 0.2, slice[slice.length - 1].end),
+        end: Math.max(slice[0].start, slice[slice.length - 1].end),
       });
     } else {
       const fallbackStart = raw.length ? raw[raw.length - 1].end : 0;
@@ -182,6 +183,17 @@ export function timingsForWindows(
       });
     }
   }
+  return raw;
+}
+
+export function timingsForWindows(
+  windows: string[],
+  alignedWords: TimedWord[],
+  totalDurationSec: number
+): WindowTiming[] {
+  if (!windows.length) return [];
+
+  const raw = spokenSpansForWindows(windows, alignedWords, totalDurationSec);
 
   // Contiguous timeline: each beat ends where the next begins.
   const timings: WindowTiming[] = raw.map((span) => ({

@@ -19,6 +19,7 @@ import {
   DEFAULT_ELEVENLABS_MODEL_ID,
 } from "./elevenlabsClient.js";
 import { ensureDirs, jobDir, loadJob, listJobs, saveJob, readJson, writeJson, jobDataFile } from "./storage.js";
+import { extractDocxText, isDocxUpload } from "./scriptDocx.js";
 import { loadScenes } from "./visualIntelligence/pipeline.js";
 import {
   enqueuePipelineJob,
@@ -58,6 +59,7 @@ import {
   validateCredentials,
 } from "./auth.js";
 import type { ApprovedVisual, JobRecord, NicheStyle, TimelineScene } from "../shared/visualIntelligence.js";
+import { isRoyalFinalNiche } from "../shared/visualIntelligence.js";
 import { JOB_STATUS_LABELS, WORDS_PER_MINUTE } from "../shared/visualIntelligence.js";
 import type { EffectTimelineEvent } from "./visualIntelligence/effectPlanner.js";
 
@@ -66,21 +68,30 @@ await ensureDirs();
 function toMediaUrl(filePathOrUrl?: string): string | undefined {
   if (!filePathOrUrl) return undefined;
   if (/^https?:\/\//i.test(filePathOrUrl)) return filePathOrUrl;
-  if (filePathOrUrl.startsWith("/")) return filePathOrUrl;
-  const normalized = path.resolve(filePathOrUrl);
+  if (filePathOrUrl.startsWith("/media/")) return filePathOrUrl;
   const storageRoot = path.resolve(config.storagePath);
-  if (normalized.startsWith(storageRoot)) {
+  const normalized = path.resolve(filePathOrUrl);
+  if (normalized === storageRoot || normalized.startsWith(`${storageRoot}${path.sep}`)) {
     const rel = normalized.slice(storageRoot.length).replace(/\\/g, "/").replace(/^\//, "");
-    return `/media/${rel}`;
+    return rel ? `/media/${rel}` : undefined;
   }
+  const stored = filePathOrUrl.replace(/\\/g, "/").match(/(?:^|\/)(jobs\/.+)$/i);
+  if (stored?.[1]) return `/media/${stored[1]}`;
+  if (filePathOrUrl.startsWith("/")) return filePathOrUrl;
   return undefined;
 }
 
 function enrichScene(scene: TimelineScene, libraryById: Map<string, ApprovedVisual>) {
   const visual = libraryById.get(scene.approvedVisualId || scene.selectedVisualId);
+  const second = scene.alternativeAssetIds?.[0]
+    ? libraryById.get(scene.alternativeAssetIds[0])
+    : undefined;
   return {
     ...scene,
     previewUrl: toMediaUrl(visual?.filePathOrUrl) || toMediaUrl(visual?.thumbnail),
+    secondPreviewUrl: second
+      ? toMediaUrl(second.filePathOrUrl) || toMediaUrl(second.thumbnail)
+      : undefined,
     fromApprovedLibrary: Boolean(scene.approvedVisualId && !scene.fallbackUsed),
     libraryVisual: visual
       ? {
@@ -283,10 +294,18 @@ app.post("/api/jobs", upload.fields([
   let script = String(req.body.script || "");
   const scriptFile = files?.scriptFile?.[0];
   if (scriptFile) {
-    script = fs.readFileSync(scriptFile.path, "utf8");
+    if (isDocxUpload(scriptFile.originalname || scriptFile.filename || "")) {
+      try {
+        script = await extractDocxText(fs.readFileSync(scriptFile.path));
+      } catch {
+        return res.status(400).json({ error: "Could not read that .docx. Save it as a Word document and try again." });
+      }
+    } else {
+      script = fs.readFileSync(scriptFile.path, "utf8");
+    }
   }
   if (!script.trim()) {
-    return res.status(400).json({ error: "Script text or .txt upload is required" });
+    return res.status(400).json({ error: "Script text, .txt, or .docx upload is required" });
   }
 
   const niche = (req.body.niche || "Celebrity v1") as NicheStyle;
@@ -355,7 +374,7 @@ app.post("/api/jobs", upload.fields([
         "YouTube raw links are only supported for Celebrity v1, Mystery v1, Mystery v2, Space v1, and War v1",
     });
   }
-  if (niche === "Royal v2") {
+  if (isRoyalFinalNiche(niche)) {
     userYoutubeRawUrls = [];
   }
 
@@ -543,6 +562,47 @@ app.post(
     });
   }
 );
+
+/** GPT 6.1 plans each line; the server assigns library clips and stills. */
+app.post("/api/jobs/:jobId/assign-context-visuals", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  const { assignContextVisuals, contextVisualAssignRunning } = await import(
+    "./visualIntelligence/royalV2/contextVisualAssign.js"
+  );
+  if (contextVisualAssignRunning(job.jobId)) {
+    return res.status(409).json({ error: "Visual assignment is already running" });
+  }
+  const reusePlans = req.body?.reusePlans === true || req.query.reusePlans === "1";
+  void assignContextVisuals(job.jobId, { reusePlans }).catch((err) => {
+    console.error("[context-visuals]", job.jobId, err);
+  });
+  res.status(202).json({
+    ok: true,
+    started: true,
+    model: process.env.ROYAL_REASONING_MODEL || "gpt-6.1-sol",
+    progress: `/api/jobs/${job.jobId}/reports/royal-context-visual-assign`,
+  });
+});
+
+/** Write one scene per script line from the saved Whisper alignment. No visuals. */
+app.post("/api/jobs/:jobId/whisper-line-scenes", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  try {
+    const { publishWhisperLineScenes } = await import("./visualIntelligence/whisperLineScenes.js");
+    const scenes = await publishWhisperLineScenes(job);
+    res.json({
+      ok: true,
+      lineCount: scenes.length,
+      status: "scene_review_ready",
+      first: scenes[0],
+      last: scenes[scenes.length - 1],
+    });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
 
 app.post("/api/jobs/:jobId/retry", async (req, res) => {
   const job = await loadJob(req.params.jobId);
@@ -756,8 +816,8 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/approve", async (req, res) => {
 app.post("/api/jobs/:jobId/scenes/:sceneId/reject", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  if (job.niche === "Royal v2" && job.timelineLock?.locked) {
-    return res.status(409).json({ error: "Timeline is locked; unlock Royal v2 before changing approval" });
+  if (isRoyalFinalNiche(job.niche) && job.timelineLock?.locked) {
+    return res.status(409).json({ error: "Timeline is locked; unlock it before changing approval" });
   }
   job.sceneApprovals = job.sceneApprovals || {};
   job.sceneApprovals[req.params.sceneId] = "rejected";
@@ -770,8 +830,8 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/find-better", async (req, res) => {
   // Only place where re-search is allowed: explicit user action.
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  if (job.niche === "Royal v2" && job.timelineLock?.locked) {
-    return res.status(409).json({ error: "Timeline is locked; unlock Royal v2 before replacing visuals" });
+  if (isRoyalFinalNiche(job.niche) && job.timelineLock?.locked) {
+    return res.status(409).json({ error: "Timeline is locked; unlock it before replacing visuals" });
   }
   const scenes = await loadScenes(job.jobId);
   const scene = scenes.find((s) => s.sceneId === req.params.sceneId);
@@ -873,7 +933,7 @@ app.get("/api/jobs/:jobId/render-info", async (req, res) => {
     sceneReviewReady,
     sceneReviewApproved: scenes.length > 0 && approvedCount === scenes.length,
     finalTimelineSaved:
-      job.niche === "Royal v2" ? Boolean(job.timelineLock?.locked) : scenes.length > 0,
+      isRoyalFinalNiche(job.niche) ? Boolean(job.timelineLock?.locked) : scenes.length > 0,
     libraryBuilt,
     qaCanRender: qa?.canRender !== false,
   };
@@ -881,11 +941,11 @@ app.get("/api/jobs/:jobId/render-info", async (req, res) => {
   if (!sceneReviewReady) blockedReasons.push("Scene Review required before render");
   if (!libraryBuilt && scenes.length === 0) blockedReasons.push("Visual library not built yet");
   if (approvedCount === 0) blockedReasons.push("no approved scenes");
-  if (job.niche === "Royal v2" && approvedCount !== scenes.length) {
-    blockedReasons.push("All Royal v2 scenes must be approved");
+  if (isRoyalFinalNiche(job.niche) && approvedCount !== scenes.length) {
+    blockedReasons.push("All scenes must be approved");
   }
-  if (job.niche === "Royal v2" && !job.timelineLock?.locked) {
-    blockedReasons.push("Royal v2 final timeline is not locked");
+  if (isRoyalFinalNiche(job.niche) && !job.timelineLock?.locked) {
+    blockedReasons.push("Final timeline is not locked");
   }
   if (qa && qa.canRender === false) {
     blockedReasons.push("Render blocked by critical warning");
@@ -994,6 +1054,7 @@ app.get("/api/jobs/:jobId/reports", async (req, res) => {
     { key: "royal-v2-soft-approval", label: "Royal v2 soft scene approval" },
     { key: "royal-v2-auto-approval", label: "Royal v2 auto approval" },
     { key: "royal-v2-sfx-plan", label: "Royal v2 SFX plan" },
+    { key: "royal-context-visual-assign", label: "Context visual assignment" },
   ];
   const available = [];
   for (const r of reports) {
@@ -1065,6 +1126,7 @@ app.get("/api/jobs/:jobId/reports/:reportKey", async (req, res) => {
     "royal-v2-auto-approval",
     "royal-v2-sfx-plan",
     "royal-v2-glitch-plan",
+    "royal-context-visual-assign",
   ]);
   if (!allowed.has(req.params.reportKey)) {
     return res.status(400).json({ error: "Unknown report" });
@@ -1097,8 +1159,8 @@ app.delete("/api/jobs/:jobId", async (req, res) => {
 app.post("/api/jobs/:jobId/scenes/:sceneId/mark-needs-better", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  if (job.niche === "Royal v2" && job.timelineLock?.locked) {
-    return res.status(409).json({ error: "Timeline is locked; unlock Royal v2 before editing" });
+  if (isRoyalFinalNiche(job.niche) && job.timelineLock?.locked) {
+    return res.status(409).json({ error: "Timeline is locked; unlock it before editing" });
   }
   job.sceneApprovals = job.sceneApprovals || {};
   job.sceneApprovals[req.params.sceneId] = "rejected";
@@ -1152,8 +1214,8 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/use-source", async (req, res) => {
   const prefer = String(req.body?.prefer || "");
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  if (job.niche === "Royal v2" && job.timelineLock?.locked) {
-    return res.status(409).json({ error: "Timeline is locked; unlock Royal v2 before replacing visuals" });
+  if (isRoyalFinalNiche(job.niche) && job.timelineLock?.locked) {
+    return res.status(409).json({ error: "Timeline is locked; unlock it before replacing visuals" });
   }
   const scenes = await loadScenes(job.jobId);
   const scene = scenes.find((s) => s.sceneId === req.params.sceneId);
@@ -1380,15 +1442,14 @@ app.post("/api/jobs/:jobId/render", async (req, res) => {
   }
   const jobCheck = await loadJob(req.params.jobId);
   if (!jobCheck) return res.status(404).json({ error: "Job not found" });
-  if (jobCheck.niche === "Royal v2" && !jobCheck.timelineLock?.locked) {
-    return res.status(400).json({ error: "Royal v2 timeline must be approved and locked before render" });
+  if (isRoyalFinalNiche(jobCheck.niche) && !jobCheck.timelineLock?.locked) {
+    return res.status(400).json({ error: "Timeline must be approved and locked before render" });
   }
   let scenesCheck: TimelineScene[];
   try {
-    scenesCheck =
-      jobCheck.niche === "Royal v2"
-        ? await loadVerifiedRoyalV2Timeline(req.params.jobId)
-        : await loadScenes(req.params.jobId);
+    scenesCheck = isRoyalFinalNiche(jobCheck.niche)
+      ? await loadVerifiedRoyalV2Timeline(req.params.jobId)
+      : await loadScenes(req.params.jobId);
   } catch (error) {
     return res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
   }
