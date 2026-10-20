@@ -4,6 +4,11 @@ import type { LibraryAsset } from "../../library/types.js";
 import type { ApprovedVisual, TimelineScene } from "../../../shared/visualIntelligence.js";
 import { loadRoyalLibraryAssets, royalAssetUrl } from "./library.js";
 
+const VISION_MODE = "person-context-gpt-6.1-sol";
+
+const MALE = new Set(["King Charles", "Prince William", "Prince Harry", "Prince Andrew", "Prince George", "Prince Louis", "Prince Edward"]);
+const FEMALE = new Set(["Queen Camilla", "Catherine, Princess of Wales", "Princess Diana", "Princess Anne", "Meghan, Duchess of Sussex", "Princess Charlotte", "Princess Beatrice", "Princess Eugenie", "Sarah Ferguson", "Queen Elizabeth"]);
+
 const PEOPLE: Array<{ label: string; pattern: RegExp }> = [
   { label: "King Charles", pattern: /\bcharles\b/i },
   { label: "Queen Camilla", pattern: /\bcamilla\b/i },
@@ -27,7 +32,25 @@ const PEOPLE: Array<{ label: string; pattern: RegExp }> = [
 type Verdict = { pass: boolean; reason: string; seen: string };
 
 function namedPeople(text: string): string[] {
+  if (/\bqueen mother\b/i.test(text)) return ["Queen Elizabeth The Queen Mother"];
   return PEOPLE.filter((person) => person.pattern.test(text)).map((person) => person.label);
+}
+
+/** Who this line is about, using the people named in earlier lines for she, he, and his wife. */
+function intendedPeople(text: string, recent: string[]): string[] {
+  const named = namedPeople(text);
+  if (named.length) return named;
+  const lower = text.toLowerCase();
+  const lastFemale = [...recent].reverse().find((person) => FEMALE.has(person));
+  const lastMale = [...recent].reverse().find((person) => MALE.has(person));
+  if (/\bhis wife\b/.test(lower) && lastMale?.includes("Charles")) return ["Queen Camilla"];
+  if (/\bhis wife\b/.test(lower) && lastMale?.includes("William")) return ["Catherine, Princess of Wales"];
+  if (/\bher husband\b/.test(lower) && lastFemale?.includes("Camilla")) return ["King Charles"];
+  if (/\bher husband\b/.test(lower) && lastFemale?.includes("Catherine")) return ["Prince William"];
+  if (/\b(she|her|hers)\b/.test(lower) && lastFemale) return [lastFemale];
+  if (/\b(he|his|him)\b/.test(lower) && lastMale) return [lastMale];
+  if (/\b(they|their|them)\b/.test(lower) && recent.length) return recent.slice(-2);
+  return [];
 }
 
 function personMatches(assetPerson: string, wanted: string[]): boolean {
@@ -44,20 +67,17 @@ function thumbUrl(asset: LibraryAsset): string | undefined {
   return royalAssetUrl({ ...asset, r2Key: key });
 }
 
-async function judgeImage(scene: TimelineScene, imageUrl: string, wanted: string[]): Promise<Verdict> {
+async function judgeImage(scene: TimelineScene, imageUrl: string, wanted: string[], context: string): Promise<Verdict> {
   const result = await chatJsonVisionStream<{ pass?: boolean; reason?: string; seen?: string; action?: string }>({
-    system: `You see one current frame only. Use the narration line as the overall context.
-Decide whether the intended person is actually visible. If the line names no person, decide whether this frame shows the action or subject of the line.
-Return JSON {"pass": true|false, "seen": "who or what is in the frame", "reason": "short", "action": "keep"|"replace"}.
-pass is true only when the intended person is clearly visible, or when no person is named and the frame matches the line.
+    system: `You see one current frame only. The person being talked about must be visible.
+Return JSON {"pass": true|false, "seen": "who is in the frame", "reason": "short", "action": "keep"|"replace"}.
+pass is true only when the required person is clearly visible in this frame.
 A historical person passes only if that historical person is visible, not a modern royal with a similar name.
-Do not pass on clothing, palaces, or captions alone. action is keep when pass is true, otherwise replace.`,
+Do not pass on clothing, a palace, or a caption alone. action is keep when pass is true, otherwise replace.`,
     user: [
       {
         type: "text",
-        text: wanted.length
-          ? `Intended person: ${wanted.join(" or ")}. Line: ${scene.narrationText.slice(0, 280)}`
-          : `No named person. Judge the line itself. Line: ${scene.narrationText.slice(0, 280)}`,
+        text: `Required person: ${wanted.join(" or ")}.\nThis line: ${scene.narrationText.slice(0, 280)}\nContext: ${context.slice(0, 280)}`,
       },
       { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
     ],
@@ -123,7 +143,8 @@ async function runVisionFixJob(jobId: string): Promise<{ checked: number; kept: 
   const writeProgress = async () => {
     await writeJson(progressPath, {
       jobId,
-      mode: "all-scenes-first-frame",
+      mode: VISION_MODE,
+      model: "gpt-6.1-sol",
       total: scenes.length,
       checked,
       kept,
@@ -136,14 +157,20 @@ async function runVisionFixJob(jobId: string): Promise<{ checked: number; kept: 
 
   await writeProgress();
 
+  const recent: string[] = [];
   for (let index = 0; index < scenes.length; index++) {
     const scene = scenes[index];
-    const wanted = namedPeople(scene.narrationText);
+    const wanted = intendedPeople(scene.narrationText, recent);
+    for (const person of namedPeople(scene.narrationText)) {
+      if (FEMALE.has(person) || MALE.has(person)) recent.push(person);
+    }
+    if (!wanted.length) continue;
     if (!scene.selectedVisualId) {
       failed += 1;
       continue;
     }
     const current = byId.get(scene.selectedVisualId);
+    const context = scenes[index - 1]?.narrationText || "";
 
     const currentUrl = current ? thumbUrl(current) : approved.get(scene.selectedVisualId)?.thumbnail || approved.get(scene.selectedVisualId)?.filePathOrUrl;
     if (!currentUrl || !/^https:\/\//i.test(currentUrl)) {
@@ -154,7 +181,7 @@ async function runVisionFixJob(jobId: string): Promise<{ checked: number; kept: 
     checked += 1;
     let verdict: Verdict;
     try {
-      verdict = await judgeImage(scene, currentUrl, wanted);
+      verdict = await judgeImage(scene, currentUrl, wanted, context);
     } catch (error) {
       console.warn(`[vision-fix] ${jobId} ${scene.sceneId} judge failed`, error instanceof Error ? error.message : error);
       failed += 1;
@@ -182,7 +209,7 @@ async function runVisionFixJob(jobId: string): Promise<{ checked: number; kept: 
       const url = thumbUrl(asset);
       if (!url) continue;
       try {
-        const next = await judgeImage(scene, url, wanted);
+        const next = await judgeImage(scene, url, wanted, context);
         console.log(`[vision-fix] ${jobId} ${scene.sceneId} alt ${asset.assetId} ${next.pass ? "pass" : "fail"}`);
         if (!next.pass) continue;
         const visual: ApprovedVisual = {
@@ -261,12 +288,32 @@ export async function resumeVisionPasses(): Promise<void> {
       (job.niche === "Royal v2" || job.niche === "Royal v3") &&
       (job.status === "scene_review_ready" || job.status === "ready_for_scene_review")
   );
+  const todayFirst = [
+    "85249c5c-7923-4620-8472-6e111d552a4d",
+    "a8c96747-6152-438e-991b-dd4563dd67a8",
+    "6af41e9d-a353-4bef-8c9f-34cb4d078602",
+    "e4932e73-690a-47c7-88bb-de859a8a2cb5",
+    "1fa609d6-c37b-429f-b56c-6af530907778",
+    "fb5fd567-0950-4a56-985a-ba1a6e3dfb13",
+    "38b95238-7915-48fa-9944-9b82f2ab26ec",
+    "24c3a2f4-1e6e-4bc0-8138-4b7ba214f7f0",
+    "39543c2c-9698-4639-aea0-8945cd764fab",
+    "e06fa474-9a32-455d-850a-a1c390faf48d",
+  ];
+  pending.sort((a, b) => {
+    const ai = todayFirst.indexOf(a.jobId);
+    const bi = todayFirst.indexOf(b.jobId);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
   const queue: string[] = [];
   for (const job of pending) {
     const report = await readJson<{ mode?: string; complete?: boolean }>(
       jobDataFile("royal-v2-soft-approval", job.jobId)
     );
-    const done = report?.mode === "all-scenes-first-frame" && report.complete === true;
+    const done = report?.mode === VISION_MODE && report.complete === true;
     if (!done) queue.push(job.jobId);
   }
   console.log(`[vision-fix] resume ${queue.length} jobs`);
