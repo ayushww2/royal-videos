@@ -35,6 +35,10 @@ function buildAuthAccounts(): AuthAccount[] {
     byName.set("ayush", defaultPassword);
   }
 
+  if (!byName.has("osi")) {
+    byName.set("osi", defaultPassword);
+  }
+
   const extra = process.env.APP_LOGINS?.trim();
   if (extra) {
     for (const entry of extra.split(",")) {
