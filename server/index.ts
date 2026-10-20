@@ -1260,6 +1260,56 @@ app.post("/api/jobs/:jobId/scene-times", async (req, res) => {
   res.json({ ok: true, changed, scenes: scenes.length });
 });
 
+app.post("/api/jobs/:jobId/scenes/:sceneId/split", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  const parts = (req.body?.parts || []) as Array<{
+    narrationText?: string;
+    startTime?: number;
+    endTime?: number;
+  }>;
+  if (parts.length < 2 || parts.some((part) => !part.narrationText?.trim())) {
+    return res.status(400).json({ error: "Two narration parts are required" });
+  }
+  const scenes = await loadScenes(job.jobId);
+  const index = scenes.findIndex((scene) => scene.sceneId === req.params.sceneId);
+  if (index < 0) return res.status(404).json({ error: "Scene not found" });
+  const original = scenes[index];
+  const created = parts.map((part, partIndex) => {
+    const start = Number(part.startTime);
+    const end = Number(part.endTime);
+    const next = {
+      ...original,
+      sceneId: partIndex === 0 ? original.sceneId : `${original.sceneId}-b`,
+      narrationText: String(part.narrationText).trim(),
+      startTime: start,
+      endTime: end,
+      duration: Number((end - start).toFixed(3)),
+    };
+    if (partIndex > 0) {
+      next.selectedVisualId = "";
+      next.approvedVisualId = undefined;
+      next.reasonSelected = "Split from the previous line. Visual not moved.";
+      next.needsBetterVisual = true;
+    }
+    return next;
+  });
+  scenes.splice(index, 1, ...created);
+  const assignmentPath = jobDataFile("visual-intelligence-final-assignment", job.jobId);
+  const existing = (await readJson<Record<string, unknown>>(assignmentPath)) || { jobId: job.jobId };
+  await writeJson(assignmentPath, { ...existing, scenes });
+  const royalPath = jobDataFile("royal-v2-final-assignment", job.jobId);
+  const royal = await readJson<Record<string, unknown>>(royalPath);
+  if (royal) await writeJson(royalPath, { ...royal, scenes });
+  const scriptLine = original.narrationText.trim();
+  if (job.script.includes(scriptLine)) {
+    job.script = job.script.replace(scriptLine, created.map((scene) => scene.narrationText).join("\n"));
+    job.updatedAt = new Date().toISOString();
+    await saveJob(job);
+  }
+  res.json({ ok: true, scenes: scenes.length, created: created.map((scene) => scene.sceneId) });
+});
+
 app.post("/api/jobs/:jobId/approve-all", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
