@@ -213,7 +213,7 @@ export async function loadTimelineForEditor(jobId: string): Promise<{
   }>(jobDataFile("royal-v2-final-assignment", jobId));
 
   let royalById = new Map<string, LibraryAsset>();
-  if (job.niche === "Royal v2") {
+  if ((job.niche === "Royal v2" || job.niche === "Royal v3")) {
     try {
       const assets = await loadRoyalLibraryAssets();
       royalById = new Map(assets.map((a) => [a.assetId, a]));

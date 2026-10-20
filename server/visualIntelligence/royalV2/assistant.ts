@@ -272,7 +272,7 @@ export async function handleRoyalV2Assistant(
   request: AssistantRequest
 ): Promise<AssistantResult> {
   const job = await loadJob(jobId);
-  if (!job || job.niche !== "Royal v2") throw new Error("Royal v2 job not found");
+  if (!job || (job.niche !== "Royal v2" && job.niche !== "Royal v3")) throw new Error("Royal v2 job not found");
   const assignment = await readJson<{ scenes: TimelineScene[] }>(
     jobDataFile("visual-intelligence-final-assignment", jobId)
   );

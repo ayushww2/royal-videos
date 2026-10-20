@@ -231,7 +231,7 @@ export function localQueryPacks(job: JobRecord, beats: VisualBeat[], maxPacks: n
         push(`${entity} wartime archival photo`, [beat.beatId], entity, 78);
         push(`${entity} battle front documentary`, [beat.beatId], entity, 74);
         push(`${entity} military historical archive`, [beat.beatId], entity, 72);
-      } else if (job.niche === "Royal v1" || job.niche === "Royal v2") {
+      } else if (job.niche === "Royal v1" || (job.niche === "Royal v2" || job.niche === "Royal v3")) {
         push(`${entity} royal family official photo`, [beat.beatId], entity, 78);
       } else {
         // Mystery and default — evidence oriented

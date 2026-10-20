@@ -10,7 +10,7 @@ export async function startPipelineAfterIngest(jobId: string): Promise<void> {
     console.warn(`[raw-ingest] cannot start pipeline — job missing ${jobId}`);
     return;
   }
-  if (job.niche === "Royal v2") {
+  if ((job.niche === "Royal v2" || job.niche === "Royal v3")) {
     console.warn(`[raw-ingest] skipping pipeline kick for Royal v2 job ${jobId}`);
     return;
   }

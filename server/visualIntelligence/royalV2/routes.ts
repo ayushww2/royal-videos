@@ -67,7 +67,7 @@ export function registerRoyalV2Routes(app: Express): void {
       const jobIds: string[] = [];
       for (const id of requestedIds) {
         const job = await loadJob(id);
-        if (!job || job.niche !== "Royal v2") {
+        if (!job || (job.niche !== "Royal v2" && job.niche !== "Royal v3")) {
           return res.status(400).json({ error: `Not a Royal v2 job: ${id}` });
         }
         job.batchId = batchId;

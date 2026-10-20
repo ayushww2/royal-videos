@@ -18,7 +18,7 @@ export function ProgressSteps({
   niche?: string;
 }) {
   const steps =
-    niche === "Royal v2"
+    (niche === "Royal v2" || niche === "Royal v3")
       ? [
           { key: "queued", label: "Queued" },
           { key: "script_analysis", label: "Script analysis" },

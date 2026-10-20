@@ -43,6 +43,7 @@ export function nicheRules(niche: string): string {
         "No Meghan/Kate/Camilla/Diana confusion.",
       ].join(" ");
     case "Royal v2":
+    case "Royal v3":
       return [
         "The internal approved Royal Media Library was searched first; this is a weak-scene external fallback only.",
         "Correct royal person, pair/group, and exact named place are mandatory.",

@@ -392,7 +392,7 @@ async function executeTool(
       let reprocess: { queued: boolean; error?: string } | null = null;
       const wantReprocess =
         args.reprocess === undefined ? false : Boolean(args.reprocess);
-      if (wantReprocess && job.niche === "Royal v2") {
+      if (wantReprocess && (job.niche === "Royal v2" || job.niche === "Royal v3")) {
         try {
           job.status = "queued";
           job.progressPercent = 0;

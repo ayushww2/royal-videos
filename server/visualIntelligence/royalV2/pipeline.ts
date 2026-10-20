@@ -99,7 +99,9 @@ function attachEffects(
 export async function runRoyalV2Pipeline(jobId: string): Promise<JobRecord> {
   const job = await loadJob(jobId);
   if (!job) throw new Error(`Job not found: ${jobId}`);
-  if (job.niche !== "Royal v2") throw new Error("Royal v2 pipeline requires a Royal v2 job");
+  if (job.niche !== "Royal v2" && job.niche !== "Royal v3") {
+    throw new Error("Royal pipeline requires a Royal v2 or Royal v3 job");
+  }
   const stageStarted = new Map<JobRecord["status"], number>();
 
   const update = async (status: JobRecord["status"], patch?: Partial<JobRecord>) => {

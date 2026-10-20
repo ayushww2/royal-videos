@@ -11,7 +11,7 @@ export async function lockRoyalV2Timeline(
   lockedBy = "manager"
 ): Promise<{ hash: string; sceneCount: number; lockedAt: string }> {
   const job = await loadJob(jobId);
-  if (!job || job.niche !== "Royal v2") throw new Error("Royal v2 job not found");
+  if (!job || (job.niche !== "Royal v2" && job.niche !== "Royal v3")) throw new Error("Royal v2 job not found");
   const assignment = await readJson<{ scenes: TimelineScene[] }>(
     jobDataFile("visual-intelligence-final-assignment", jobId)
   );
@@ -64,7 +64,7 @@ export async function lockRoyalV2Timeline(
 
 export async function unlockRoyalV2Timeline(jobId: string, unlockedBy = "manager"): Promise<void> {
   const job = await loadJob(jobId);
-  if (!job || job.niche !== "Royal v2") throw new Error("Royal v2 job not found");
+  if (!job || (job.niche !== "Royal v2" && job.niche !== "Royal v3")) throw new Error("Royal v2 job not found");
   await writeJson(jobDataFile("final-timeline", jobId), {
     jobId,
     locked: false,
@@ -80,7 +80,7 @@ export async function unlockRoyalV2Timeline(jobId: string, unlockedBy = "manager
 
 export async function loadVerifiedRoyalV2Timeline(jobId: string): Promise<TimelineScene[]> {
   const job = await loadJob(jobId);
-  if (!job || job.niche !== "Royal v2") throw new Error("Royal v2 job not found");
+  if (!job || (job.niche !== "Royal v2" && job.niche !== "Royal v3")) throw new Error("Royal v2 job not found");
   if (!job.timelineLock?.locked) throw new Error("Royal v2 timeline must be locked before rendering");
   const locked = await readJson<{ locked?: boolean; hash?: string; scenes?: TimelineScene[] }>(
     jobDataFile("final-timeline", jobId)

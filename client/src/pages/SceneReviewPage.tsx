@@ -74,7 +74,7 @@ export function SceneReviewPage() {
         (scene.warnings || []).length > 0
     );
     setSelectedId((prev) => prev || firstFlagged?.sceneId || data.scenes?.[0]?.sceneId || "");
-    if (data.job.niche === "Royal v2" && !initializedRoyalFilter.current) {
+    if ((data.job.niche === "Royal v2" || data.job.niche === "Royal v3") && !initializedRoyalFilter.current) {
       setFilter("needs");
       initializedRoyalFilter.current = true;
     }
@@ -208,7 +208,7 @@ export function SceneReviewPage() {
       contentClassName="content-tool"
       actions={
         <div className="btn-row">
-          {job?.niche === "Royal v2" && (
+          {(job?.niche === "Royal v2" || job?.niche === "Royal v3") && (
             job.timelineLock?.locked ? (
               <button className="btn btn-secondary btn-sm" type="button" onClick={unlockRoyalTimeline}>Unlock Timeline</button>
             ) : (
@@ -432,7 +432,7 @@ export function SceneReviewPage() {
                   <div className="btn-row" style={{ marginTop: 12 }}>
                     <button className="btn btn-primary btn-sm" type="button" onClick={() => act("approve")}>Approve</button>
                     <button className="btn btn-secondary btn-sm" type="button" onClick={() => act("reject")}>Reject</button>
-                    {job?.niche !== "Royal v2" && (
+                    {(job?.niche !== "Royal v2" && job?.niche !== "Royal v3") && (
                       <>
                         <button className="btn btn-secondary btn-sm" type="button" onClick={() => act("find-better")}>Find Better Visual</button>
                         <button className="btn btn-secondary btn-sm" type="button" onClick={() => act("use-source", { prefer: "raw" })}>Use Raw Footage</button>
@@ -455,7 +455,7 @@ export function SceneReviewPage() {
               />
             </div>
           )}
-          {job?.niche === "Royal v2" && (
+          {(job?.niche === "Royal v2" || job?.niche === "Royal v3") && (
             <div style={{ marginTop: 16 }}>
               <RoyalAssistantPanel
                 jobId={jobId}

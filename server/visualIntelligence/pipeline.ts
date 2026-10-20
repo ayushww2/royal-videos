@@ -1,7 +1,7 @@
 import { runDirectorPipeline } from "./director/directorPipeline.js";
 import { runRoyalV2Pipeline } from "./royalV2/pipeline.js";
 import { loadJob, readJson, jobDataFile } from "../storage.js";
-import type { JobRecord, TimelineScene } from "../../shared/visualIntelligence.js";
+import { isRoyalHouseNiche, type JobRecord, type TimelineScene } from "../../shared/visualIntelligence.js";
 
 /**
  * Visual intelligence entry:
@@ -12,7 +12,7 @@ export async function runVisualIntelligencePipeline(jobId: string): Promise<JobR
   const job = await loadJob(jobId);
   if (!job) throw new Error(`Job not found: ${jobId}`);
 
-  if (job.niche === "Royal v2") {
+  if (isRoyalHouseNiche(job.niche)) {
     return runRoyalV2Pipeline(jobId);
   }
 

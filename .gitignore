@@ -5,6 +5,7 @@ data/
 .env
 .env.*
 !.env.example
+credentials.env
 *.log
 .DS_Store
 client/dist/

@@ -5,7 +5,13 @@ export type NicheStyle =
   | "Mystery v2"
   | "Royal v1"
   | "Royal v2"
+  | "Royal v3"
   | "War v1";
+
+/** Royal v2 and Royal v3 share the library-first documentary pipeline. */
+export function isRoyalHouseNiche(niche: string | null | undefined): boolean {
+  return niche === "Royal v2" || niche === "Royal v3";
+}
 
 export type JobStatus =
   | "uploaded"
