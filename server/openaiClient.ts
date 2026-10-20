@@ -142,3 +142,39 @@ export async function chatJsonVision<T>(params: {
     }
   });
 }
+
+/** Vision JSON with streamed tokens so a long judge does not sit silent until the end. */
+export async function chatJsonVisionStream<T>(params: {
+  system: string;
+  user: Array<ChatTextPart | ChatImagePart>;
+  temperature?: number;
+  model?: string;
+  onDelta?: (delta: string) => void;
+}): Promise<T> {
+  return withRetries("chatJsonVisionStream", async () => {
+    const openai = getOpenAI();
+    const stream = await openai.chat.completions.create({
+      model: params.model || config.openaiModel,
+      temperature: params.temperature ?? 0.1,
+      response_format: { type: "json_object" },
+      stream: true,
+      messages: [
+        { role: "system", content: params.system },
+        { role: "user", content: params.user },
+      ],
+    });
+    let content = "";
+    for await (const part of stream) {
+      const delta = part.choices[0]?.delta?.content || "";
+      if (!delta) continue;
+      content += delta;
+      params.onDelta?.(delta);
+    }
+    if (!content.trim()) throw new Error("OpenAI returned empty streamed vision response");
+    try {
+      return JSON.parse(content) as T;
+    } catch {
+      throw new Error("OpenAI streamed vision returned invalid JSON");
+    }
+  });
+}
