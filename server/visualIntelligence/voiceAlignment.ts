@@ -203,6 +203,12 @@ export function timingsForWindows(
   return timings;
 }
 
+function voiceAlignmentEnabled(): boolean {
+  const raw = optionalEnv("VOICE_ALIGNMENT");
+  if (raw == null) return true;
+  return !/^(0|false|off|no)$/i.test(raw);
+}
+
 function assemblyApiKey(): string {
   const key = optionalEnv("ASSEMBLYAI_API_KEY");
   if (!key) throw new Error("ASSEMBLYAI_API_KEY is not set");
