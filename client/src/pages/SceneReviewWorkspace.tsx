@@ -12,7 +12,7 @@ import {
 } from "../lib/api";
 import type { JobRecord, Scene } from "../lib/types";
 
-type ReviewFilter = "all" | "review" | "approved" | "clips" | "images";
+type ReviewFilter = "all" | "review" | "approved" | "clips" | "images" | "fix" | "doubt" | "specific";
 type InspectorMode = "inspect" | "replace";
 
 function sceneIsVideo(scene: Scene): boolean {
@@ -192,6 +192,9 @@ export function SceneReviewWorkspace() {
       clips,
       images: scenes.length - clips,
       remaining: Math.max(0, scenes.length - approved),
+      fix: scenes.filter((scene) => scene.humanReview === "fix").length,
+      doubt: scenes.filter((scene) => scene.humanReview === "doubt").length,
+      specific: scenes.filter((scene) => scene.humanReview === "specific").length,
     };
   }, [scenes, approvals]);
 
@@ -210,6 +213,9 @@ export function SceneReviewWorkspace() {
         if (filter === "approved") return approval === "approved";
         if (filter === "clips") return sceneIsVideo(scene);
         if (filter === "images") return !sceneIsVideo(scene);
+        if (filter === "fix") return scene.humanReview === "fix";
+        if (filter === "doubt") return scene.humanReview === "doubt";
+        if (filter === "specific") return scene.humanReview === "specific";
         return true;
       }),
     [scenes, approvals, filter]
@@ -409,6 +415,9 @@ export function SceneReviewWorkspace() {
                   ["approved", `Approved ${counts.approved}`],
                   ["clips", `Clips ${counts.clips}`],
                   ["images", `Images ${counts.images}`],
+                  ["fix", `To be fixed ${counts.fix}`],
+                  ["doubt", `Doubt ${counts.doubt}`],
+                  ["specific", `Specific ${counts.specific}`],
                 ] as Array<[ReviewFilter, string]>
               ).map(([id, label]) => (
                 <button

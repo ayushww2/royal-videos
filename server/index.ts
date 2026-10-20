@@ -1226,6 +1226,14 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/use-source", async (req, res) => {
   res.json({ ok: true, scene });
 });
 
+app.post("/api/jobs/:jobId/human-review", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  const { markHumanReview } = await import("./visualIntelligence/royalV2/humanReview.js");
+  const result = await markHumanReview(job.jobId);
+  res.json({ ok: true, ...result });
+});
+
 app.post("/api/jobs/:jobId/vision-fix", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });

@@ -142,6 +142,7 @@ export interface Scene {
   pairOrGroup?: string[];
   specificPlace?: string;
   contextType?: string;
+  humanReview?: "fix" | "doubt" | "specific";
   assetUsageCountVideo?: number;
   assetUsageCountCurrentMinute?: number;
   entityUsageCount?: number;

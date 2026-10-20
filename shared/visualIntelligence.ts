@@ -496,6 +496,8 @@ export interface TimelineScene {
   markForAiRevise?: boolean;
   /** Free-form editor notes (effects / SFX / revision hints) */
   editorNotes?: string;
+  /** Human review bucket. At most 40 scenes per job across these three. */
+  humanReview?: "fix" | "doubt" | "specific";
 }
 
 export interface ImportantEntityDetection {
