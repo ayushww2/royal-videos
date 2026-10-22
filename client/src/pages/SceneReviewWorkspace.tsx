@@ -636,7 +636,7 @@ export function SceneReviewWorkspace() {
               </div>
             ) : (
               <div className="review-replace">
-                <div className="review-searchbar">
+                <div className="review-kindbar">
                   <button
                     className="btn btn-secondary"
                     type="button"
@@ -666,6 +666,25 @@ export function SceneReviewWorkspace() {
                   >
                     Google
                   </button>
+                  {replaceSource === "library" &&
+                    (
+                      [
+                        ["all", "All"],
+                        ["raw_footage", "Clips"],
+                        ["image", "Images"],
+                      ] as Array<["all" | "raw_footage" | "image", string]>
+                    ).map(([id, label]) => (
+                      <button
+                        key={id}
+                        className={`btn ${libraryKind === id ? "btn-primary" : "btn-secondary"}`}
+                        type="button"
+                        onClick={() => setLibraryKind(id)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                </div>
+                <div className="review-searchbar">
                   <input
                     value={libraryQuery}
                     onChange={(event) => setLibraryQuery(event.target.value)}
@@ -684,26 +703,6 @@ export function SceneReviewWorkspace() {
                     {searching ? "Searching…" : "Search"}
                   </button>
                 </div>
-                {replaceSource === "library" && (
-                  <div className="review-searchbar">
-                    {(
-                      [
-                        ["all", "All"],
-                        ["raw_footage", "Clips"],
-                        ["image", "Images"],
-                      ] as Array<["all" | "raw_footage" | "image", string]>
-                    ).map(([id, label]) => (
-                      <button
-                        key={id}
-                        className={`btn ${libraryKind === id ? "btn-primary" : "btn-secondary"}`}
-                        type="button"
-                        onClick={() => setLibraryKind(id)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
                 <p className="review-search-help">
                   {replaceSource === "google"
                     ? "Search Google Images, then select one to put it on this scene."

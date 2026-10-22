@@ -2786,13 +2786,34 @@ table.data tr:hover td { background: rgba(255,255,255,0.02); }
   overflow: auto;
 }
 
-.review-searchbar {
-  display: grid;
-  grid-template-columns: auto minmax(180px, 1fr) auto;
+.review-searchbar,
+.review-kindbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
+.review-searchbar {
+  margin-top: 8px;
+}
+
 .review-searchbar input {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 9px;
+  outline: none;
+  background: #080f1b;
+  color: white;
+}
+
+.review-searchbar .btn,
+.review-kindbar .btn {
+  flex: 0 0 auto;
+  width: auto;
+}
   min-width: 0;
   padding: 9px 11px;
   border: 1px solid rgba(148, 163, 184, 0.2);
@@ -2920,7 +2941,13 @@ table.data tr:hover td { background: rgba(255,255,255,0.02); }
     border-radius: 0;
   }
 
-  .review-searchbar {
-    grid-template-columns: 1fr;
+  .review-searchbar,
+  .review-kindbar {
+    align-items: stretch;
+  }
+
+  .review-searchbar .btn,
+  .review-kindbar .btn {
+    flex: 1 1 auto;
   }
 }
