@@ -6,6 +6,7 @@ import crypto from "crypto";
 import { jobDataFile, loadJob, readJson, writeJson } from "../storage.js";
 import type { ApprovedVisual, TimelineScene } from "../../shared/visualIntelligence.js";
 import { assessContentSafety } from "./contentSafety.js";
+import { rawFootageFlagForVisual } from "./mediaKind.js";
 import { runFinalQA } from "./finalQA.js";
 import { loadTimelineScenes } from "./timelineEditor.js";
 
@@ -185,6 +186,7 @@ export async function setSceneVisualFromUrl(params: {
     selectedVisualId: approvedVisualId,
     approvedVisualId,
     source: "google_image",
+    rawFootageUsed: rawFootageFlagForVisual({ source: "google_image", mediaType: "image", url }),
     reasonSelected: `Emergency safe swap: ${params.title || "dignified subject visual"}`,
     confidence: 0.9,
     fallbackUsed: false,

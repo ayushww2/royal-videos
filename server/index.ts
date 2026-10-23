@@ -58,6 +58,7 @@ import {
   validateCredentials,
 } from "./auth.js";
 import type { ApprovedVisual, JobRecord, NicheStyle, TimelineScene } from "../shared/visualIntelligence.js";
+import { rawFootageFlagForVisual } from "./visualIntelligence/mediaKind.js";
 import { isRoyalHouseNiche } from "../shared/visualIntelligence.js";
 import { scriptFromUpload } from "./docxScript.js";
 import { JOB_STATUS_LABELS, WORDS_PER_MINUTE } from "../shared/visualIntelligence.js";
@@ -852,6 +853,11 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/find-better", async (req, res) => {
   scene.selectedVisualId = next.approvedVisualId;
   scene.approvedVisualId = next.approvedVisualId;
   scene.source = next.source;
+  scene.rawFootageUsed = rawFootageFlagForVisual({
+    source: next.source,
+    mediaType: next.mediaType,
+    url: next.filePathOrUrl,
+  });
   scene.reasonSelected = "User requested find better visual from approved library (best scored alt)";
   scene.fallbackUsed = false;
   scene.needsBetterVisual = false;
@@ -1164,6 +1170,16 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/set-visual", async (req, res) => {
   }
 });
 
+app.post("/api/jobs/repair-image-raw-flags", async (req, res) => {
+  try {
+    const { repairImageRawFlags } = await import("./visualIntelligence/repairImageRawFlags.js");
+    const result = await repairImageRawFlags(req.body?.apply === true);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 app.post("/api/jobs/:jobId/approved-visuals/soft-fail", async (req, res) => {
   try {
     const { softFailApprovedVisuals } = await import("./visualIntelligence/emergencyVisualFix.js");
@@ -1232,6 +1248,11 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/use-source", async (req, res) => {
   scene.selectedVisualId = next.approvedVisualId;
   scene.approvedVisualId = next.approvedVisualId;
   scene.source = next.source;
+  scene.rawFootageUsed = rawFootageFlagForVisual({
+    source: next.source,
+    mediaType: next.mediaType,
+    url: next.filePathOrUrl,
+  });
   scene.reasonSelected = `User selected ${prefer || "alternate"} visual from approved library`;
   scene.fallbackUsed = false;
   scene.confidence = next.confidenceScores.entityMatch / 100;
