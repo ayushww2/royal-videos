@@ -36,6 +36,7 @@ export type JobStatus =
   | "effect_planning"
   | "scene_review_ready"
   | "approved"
+  | "finalized"
   | "ready_for_scene_review"
   | "render_queued"
   | "rendering"
@@ -150,6 +151,8 @@ export interface JobRecord {
     lockedAt: string;
     lockedBy: string;
     sceneCount: number;
+    /** Status to restore if the timeline is unlocked. Additive; not a scene field. */
+    statusBeforeLock?: JobStatus;
   };
 }
 
@@ -717,6 +720,7 @@ export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   effect_planning: "effect planning",
   scene_review_ready: "scene review ready",
   approved: "approved",
+  finalized: "Finalized",
   ready_for_scene_review: "ready for scene review",
   render_queued: "render queued (RunPod)",
   rendering: "rendering",

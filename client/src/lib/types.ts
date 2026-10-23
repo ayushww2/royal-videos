@@ -21,6 +21,7 @@ export type JobStatus =
   | "effect_planning"
   | "scene_review_ready"
   | "approved"
+  | "finalized"
   | "ready_for_scene_review"
   | "render_queued"
   | "rendering"
@@ -93,6 +94,7 @@ export interface JobRecord {
     lockedAt: string;
     lockedBy: string;
     sceneCount: number;
+    statusBeforeLock?: JobStatus;
   };
 }
 
@@ -217,6 +219,7 @@ export const PIPELINE_STEPS: Array<{ key: JobStatus; label: string }> = [
   { key: "effect_planning", label: "Effect planning" },
   { key: "scene_review_ready", label: "Scene review ready" },
   { key: "approved", label: "Approved & locked" },
+  { key: "finalized", label: "Finalized" },
   { key: "ready_for_scene_review", label: "Ready for scene review" },
   { key: "render_queued", label: "Render queued" },
   { key: "rendering", label: "Rendering" },
@@ -226,6 +229,7 @@ export const PIPELINE_STEPS: Array<{ key: JobStatus; label: string }> = [
 export function statusTone(status: string): "neutral" | "info" | "success" | "warning" | "danger" | "violet" {
   if (status === "completed") return "success";
   if (status === "failed") return "danger";
+  if (status === "finalized") return "success";
   if (status === "ready_for_scene_review" || status === "scene_review_ready" || status === "approved") return "violet";
   if (status === "rendering" || status === "render_queued" || status === "raw_ingest_failed") return "warning";
   if (
@@ -268,6 +272,7 @@ export function friendlyStatus(status: string): string {
     effect_planning: "Effect Planning",
     scene_review_ready: "Ready for Review",
     approved: "Approved & Locked",
+    finalized: "Finalized",
     ready_for_scene_review: "Ready for Review",
     render_queued: "Render queued (RunPod)",
     rendering: "Rendering",
