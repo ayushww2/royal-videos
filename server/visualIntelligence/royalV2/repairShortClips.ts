@@ -54,6 +54,7 @@ export type RepairScene = {
   duration: number;
   narrationText: string;
   isClip: boolean;
+  isImage?: boolean;
   fileKey?: string;
 };
 
@@ -196,6 +197,69 @@ export function planShortClipReplacements(scenes: RepairScene[], clips: RepairCl
   return { replacements, unchanged, affected };
 }
 
+/** Turn image scenes into clips until the job is about 65% clips, and never above 70%. */
+export function planImageToClipConversions(scenes: RepairScene[], clips: RepairClip[]) {
+  const visuals = scenes.filter((scene) => scene.isClip || scene.isImage).length;
+  const clipsBefore = scenes.filter((scene) => scene.isClip).length;
+  const imagesBefore = scenes.filter((scene) => scene.isImage).length;
+  const minClips = Math.ceil(visuals * 0.6);
+  const maxClips = Math.floor(visuals * 0.7);
+  const goal = Math.min(maxClips, Math.max(minClips, Math.round(visuals * 0.65)));
+  const uses = new Map<string, number[]>();
+  scenes.forEach((scene, index) => {
+    if (!scene.isClip || !scene.fileKey) return;
+    const list = uses.get(scene.fileKey) || [];
+    list.push(index);
+    uses.set(scene.fileKey, list);
+  });
+  const recent: string[] = [];
+  const replacements: Array<{ index: number; sceneId: string; assetId: string; fileKey: string; duration: number; person: string }> = [];
+  const unchanged: Array<{ sceneId: string; reason: string }> = [];
+  let clipCount = clipsBefore;
+  for (let index = 0; index < scenes.length; index++) {
+    const scene = scenes[index];
+    const namedNow = royalPersonMentions(scene.narrationText).map((mention) => mention.person);
+    const people = peopleForScene(scene.narrationText, recent);
+    for (const person of namedNow) {
+      if (!recent.includes(person)) recent.push(person);
+      else {
+        recent.splice(recent.indexOf(person), 1);
+        recent.push(person);
+      }
+    }
+    if (!scene.isImage) continue;
+    if (clipCount >= goal) break;
+    const words = tokens(scene.narrationText);
+    const pool = clips
+      .filter((clip) => clip.duration + DURATION_SLACK >= scene.duration)
+      .filter((clip) => gapOk(uses.get(clip.fileKey) || [], index))
+      .map((clip) => ({ clip, score: scoreClip(clip, people, words) }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || b.clip.duration - a.clip.duration);
+    const chosen = pool[0]?.clip;
+    if (!chosen) {
+      unchanged.push({
+        sceneId: scene.sceneId,
+        reason: "No library clip is long enough, matches the subject, and stays within 3 uses and 51 scenes apart",
+      });
+      continue;
+    }
+    const nextUses = uses.get(chosen.fileKey) || [];
+    nextUses.push(index);
+    uses.set(chosen.fileKey, nextUses);
+    clipCount += 1;
+    replacements.push({
+      index,
+      sceneId: scene.sceneId,
+      assetId: chosen.assetId,
+      fileKey: chosen.fileKey,
+      duration: chosen.duration,
+      person: chosen.person,
+    });
+  }
+  return { replacements, unchanged, visuals, clipsBefore, imagesBefore, clipsAfter: clipCount, minClips, maxClips, goal };
+}
+
 function isVideoUrl(url?: string): boolean {
   return !!url && /\.(mp4|webm|mov|mkv|m4v)(?:[?&#]|$)/i.test(url);
 }
@@ -256,7 +320,7 @@ function blankScores(): ApprovedVisual["confidenceScores"] {
   };
 }
 
-export async function repairShortClips(jobId: string, options: { apply: boolean }) {
+export async function repairShortClips(jobId: string, options: { apply: boolean; mode?: "short" | "raise" }) {
   if (!SHORT_CLIP_REPAIR_JOBS.has(jobId)) throw new Error("Job is outside the short-clip repair set");
   const job = await loadJob(jobId);
   if (!job) throw new Error("Job not found");
@@ -320,6 +384,7 @@ export async function repairShortClips(jobId: string, options: { apply: boolean 
       duration: scene.duration || Math.max(0, scene.endTime - scene.startTime),
       narrationText: scene.narrationText || "",
       isClip,
+      isImage: !isClip && Boolean(scene.selectedVisualId || scene.approvedVisualId) && !isVideoUrl(url),
       fileKey: isClip ? fileKey : undefined,
     };
   });
@@ -342,7 +407,21 @@ export async function repairShortClips(jobId: string, options: { apply: boolean 
     });
   }
 
-  const plan = planShortClipReplacements(repairScenes, clipsForPlan);
+  const raising = options.mode === "raise";
+  const raisePlan = raising ? planImageToClipConversions(repairScenes, clipsForPlan) : null;
+  const plan = raisePlan || planShortClipReplacements(repairScenes, clipsForPlan);
+  const share = raisePlan
+    ? {
+        visuals: raisePlan.visuals,
+        clipsBefore: raisePlan.clipsBefore,
+        imagesBefore: raisePlan.imagesBefore,
+        clipsAfter: raisePlan.clipsAfter,
+        imagesAfter: raisePlan.imagesBefore - raisePlan.replacements.length,
+        minClips: raisePlan.minClips,
+        maxClips: raisePlan.maxClips,
+        goal: raisePlan.goal,
+      }
+    : undefined;
   if (!options.apply) {
     return {
       ok: true,
@@ -350,9 +429,10 @@ export async function repairShortClips(jobId: string, options: { apply: boolean 
       jobId,
       status: statusBefore,
       locked: lockBefore,
-      affected: plan.affected,
+      affected: "affected" in plan ? plan.affected : plan.replacements.length,
       replaced: plan.replacements.length,
       unchanged: plan.unchanged,
+      share,
       replacements: plan.replacements.map((item) => ({
         sceneId: item.sceneId,
         assetId: item.assetId,
@@ -363,7 +443,13 @@ export async function repairShortClips(jobId: string, options: { apply: boolean 
   }
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const backupDir = path.join(config.dataPath, "backups", "short-clip-repair", stamp, jobId);
+  const backupDir = path.join(
+    config.dataPath,
+    "backups",
+    raising ? "clip-share-repair" : "short-clip-repair",
+    stamp,
+    jobId
+  );
   await fs.mkdir(backupDir, { recursive: true });
   for (const filePath of [assignmentPath, royalPath, libraryPath, path.join(config.storagePath, "jobs", jobId, "job.json")]) {
     try {
@@ -444,8 +530,9 @@ export async function repairShortClips(jobId: string, options: { apply: boolean 
     lockedBefore: lockBefore,
     lockedAfter: jobAfter?.timelineLock?.locked === true,
     backupDir,
-    affected: plan.affected,
+    affected: "affected" in plan ? plan.affected : plan.replacements.length,
     replaced: plan.replacements.length,
+    share,
     unchanged: plan.unchanged,
     replacements: plan.replacements.map((item) => ({
       sceneId: item.sceneId,
