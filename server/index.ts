@@ -190,8 +190,30 @@ app.get("/api/elevenlabs/options", (_req, res) => {
   res.json(listElevenLabsOptions());
 });
 
+/** Read-only: a scene is filled when the review page would have a preview URL. */
+async function sceneFillCounts(jobId: string): Promise<{ sceneTotal: number; scenesFilled: number }> {
+  const scenes = await loadScenes(jobId);
+  const library = await readJson<{ approved: ApprovedVisual[] }>(
+    jobDataFile("visual-intelligence-approved-library", jobId)
+  );
+  const libraryById = new Map((library?.approved || []).map((v) => [v.approvedVisualId, v]));
+  let scenesFilled = 0;
+  for (const scene of scenes) {
+    const visual = libraryById.get(scene.approvedVisualId || scene.selectedVisualId);
+    if (toMediaUrl(visual?.filePathOrUrl) || toMediaUrl(visual?.thumbnail)) scenesFilled += 1;
+  }
+  return { sceneTotal: scenes.length, scenesFilled };
+}
+
 app.get("/api/jobs", async (_req, res) => {
-  res.json({ jobs: await listJobs() });
+  const jobs = await listJobs();
+  const withFill = await Promise.all(
+    jobs.map(async (job) => {
+      const counts = await sceneFillCounts(job.jobId);
+      return { ...job, ...counts };
+    })
+  );
+  res.json({ jobs: withFill });
 });
 
 app.get("/api/jobs/:jobId", async (req, res) => {

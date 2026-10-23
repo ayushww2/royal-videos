@@ -47,6 +47,9 @@ export interface JobRecord {
   error?: string;
   createdAt: string;
   updatedAt: string;
+  /** Display-only, computed on GET /api/jobs. Not stored on the job file. */
+  sceneTotal?: number;
+  scenesFilled?: number;
   batchId?: string;
   progressPercent?: number;
   gptCallsUsed?: number;

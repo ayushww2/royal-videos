@@ -52,6 +52,22 @@ export function JobsPage() {
     return [...counts.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [jobs]);
 
+  const dayNumber = useMemo(() => {
+    const byDay = new Map<string, JobRecord[]>();
+    for (const job of jobs) {
+      const key = submittedDay(job.createdAt) || "unknown";
+      const list = byDay.get(key) || [];
+      list.push(job);
+      byDay.set(key, list);
+    }
+    const numbers = new Map<string, number>();
+    for (const list of byDay.values()) {
+      list.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.jobId.localeCompare(b.jobId));
+      list.forEach((job, index) => numbers.set(job.jobId, index + 1));
+    }
+    return numbers;
+  }, [jobs]);
+
   const visible = day === "all" ? jobs : jobs.filter((job) => submittedDay(job.createdAt) === day);
 
   async function remove(jobId: string) {
@@ -94,6 +110,7 @@ export function JobsPage() {
             <table className="data">
               <thead>
                 <tr>
+                  <th>#</th>
                   <th>Title</th>
                   <th>Style</th>
                   <th>Status</th>
@@ -107,12 +124,15 @@ export function JobsPage() {
               <tbody>
                 {visible.map((j) => (
                   <tr key={j.jobId}>
+                    <td>#{dayNumber.get(j.jobId) ?? "—"}</td>
                     <td>{j.title}</td>
                     <td className="muted">{j.niche}</td>
                     <td>
                       <StatusBadge status={j.status} label={friendlyStatus(j.status)} />
                     </td>
-                    <td>{j.stats?.finalScenes ?? "—"}</td>
+                    <td>
+                      {j.scenesFilled ?? "—"} / {j.sceneTotal ?? j.stats?.finalScenes ?? "—"} filled
+                    </td>
                     <td>
                       {(j.stats?.wrongEntityWarnings || 0) + (j.stats?.repeatedVisualWarnings || 0) || 0}
                     </td>
@@ -138,7 +158,7 @@ export function JobsPage() {
                 ))}
                 {!visible.length && (
                   <tr>
-                    <td colSpan={8} className="muted">
+                    <td colSpan={9} className="muted">
                       {jobs.length ? "No jobs submitted on this date." : "No jobs yet."}
                     </td>
                   </tr>
