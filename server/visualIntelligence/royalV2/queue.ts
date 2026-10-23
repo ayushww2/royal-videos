@@ -42,7 +42,7 @@ export async function listRoyalV2Batches(): Promise<RoyalBulkBatch[]> {
 
 export async function enqueueRoyalV2Job(jobId: string): Promise<void> {
   const job = await loadJob(jobId);
-  if (!job || job.niche !== "Royal v2") throw new Error("Cannot queue non-Royal-v2 job");
+  if (!job || (job.niche !== "Royal v2" && job.niche !== "Royal v3")) throw new Error("Cannot queue non-Royal-v2 job");
   if (
     ["scene_review_ready", "ready_for_scene_review", "approved", "completed", "rendering"].includes(
       job.status,
@@ -63,7 +63,7 @@ export async function resumeRoyalV2Queue(): Promise<void> {
   const jobs = await listJobs();
   const resumable = jobs.filter(
     (job) =>
-      job.niche === "Royal v2" &&
+      (job.niche === "Royal v2" || job.niche === "Royal v3") &&
       ![
         "scene_review_ready",
         "ready_for_scene_review",

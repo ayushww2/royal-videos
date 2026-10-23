@@ -58,6 +58,8 @@ import {
   validateCredentials,
 } from "./auth.js";
 import type { ApprovedVisual, JobRecord, NicheStyle, TimelineScene } from "../shared/visualIntelligence.js";
+import { isRoyalHouseNiche } from "../shared/visualIntelligence.js";
+import { scriptFromUpload } from "./docxScript.js";
 import { JOB_STATUS_LABELS, WORDS_PER_MINUTE } from "../shared/visualIntelligence.js";
 import type { EffectTimelineEvent } from "./visualIntelligence/effectPlanner.js";
 
@@ -188,8 +190,30 @@ app.get("/api/elevenlabs/options", (_req, res) => {
   res.json(listElevenLabsOptions());
 });
 
+/** Read-only: a scene is filled when the review page would have a preview URL. */
+async function sceneFillCounts(jobId: string): Promise<{ sceneTotal: number; scenesFilled: number }> {
+  const scenes = await loadScenes(jobId);
+  const library = await readJson<{ approved: ApprovedVisual[] }>(
+    jobDataFile("visual-intelligence-approved-library", jobId)
+  );
+  const libraryById = new Map((library?.approved || []).map((v) => [v.approvedVisualId, v]));
+  let scenesFilled = 0;
+  for (const scene of scenes) {
+    const visual = libraryById.get(scene.approvedVisualId || scene.selectedVisualId);
+    if (toMediaUrl(visual?.filePathOrUrl) || toMediaUrl(visual?.thumbnail)) scenesFilled += 1;
+  }
+  return { sceneTotal: scenes.length, scenesFilled };
+}
+
 app.get("/api/jobs", async (_req, res) => {
-  res.json({ jobs: await listJobs() });
+  const jobs = await listJobs();
+  const withFill = await Promise.all(
+    jobs.map(async (job) => {
+      const counts = await sceneFillCounts(job.jobId);
+      return { ...job, ...counts };
+    })
+  );
+  res.json({ jobs: withFill });
 });
 
 app.get("/api/jobs/:jobId", async (req, res) => {
@@ -208,9 +232,13 @@ app.patch("/api/jobs/:jobId", async (req, res) => {
   const body = (req.body || {}) as {
     customEditInstructions?: string | null;
     title?: string;
+    script?: string;
   };
   if (typeof body.title === "string" && body.title.trim()) {
     job.title = body.title.trim();
+  }
+  if (typeof body.script === "string" && body.script.trim()) {
+    job.script = body.script.replace(/\r\n/g, "\n").trim();
   }
   if (body.customEditInstructions !== undefined) {
     const text = String(body.customEditInstructions || "").trim();
@@ -283,10 +311,16 @@ app.post("/api/jobs", upload.fields([
   let script = String(req.body.script || "");
   const scriptFile = files?.scriptFile?.[0];
   if (scriptFile) {
-    script = fs.readFileSync(scriptFile.path, "utf8");
+    try {
+      script = scriptFromUpload(scriptFile.path);
+    } catch (err) {
+      return res.status(400).json({
+        error: `Could not read the script file: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
   }
   if (!script.trim()) {
-    return res.status(400).json({ error: "Script text or .txt upload is required" });
+    return res.status(400).json({ error: "A Word script with at least one line is required" });
   }
 
   const niche = (req.body.niche || "Celebrity v1") as NicheStyle;
@@ -355,7 +389,7 @@ app.post("/api/jobs", upload.fields([
         "YouTube raw links are only supported for Celebrity v1, Mystery v1, Mystery v2, Space v1, and War v1",
     });
   }
-  if (niche === "Royal v2") {
+  if (isRoyalHouseNiche(niche)) {
     userYoutubeRawUrls = [];
   }
 
@@ -421,7 +455,7 @@ app.post("/api/jobs", upload.fields([
         error: err instanceof Error ? err.message : "Failed to queue YouTube raw ingest",
       });
     }
-  } else if (job.niche === "Royal v2") {
+  } else if (isRoyalHouseNiche(job.niche)) {
     // Royal v2: batch bookkeeping + shared pipeline concurrency gate.
     void enqueueRoyalV2Job(jobId).catch((err) => {
       console.error("Royal v2 queue failed", jobId, err);
@@ -519,7 +553,7 @@ app.post(
         ...(alignment as Record<string, unknown>),
         jobId: job.jobId,
         status: "ready",
-        source: "openai_whisper",
+        source: "assemblyai",
         voiceoverPath: job.voiceoverPath,
         voiceoverDurationSec:
           (alignment as { voiceoverDurationSec?: number }).voiceoverDurationSec ||
@@ -689,7 +723,7 @@ app.post("/api/jobs/:jobId/retry", async (req, res) => {
     }).catch((err) => {
       console.error("Raw ingest re-queue failed", job.jobId, err);
     });
-  } else if (job.niche === "Royal v2") {
+  } else if (isRoyalHouseNiche(job.niche)) {
     try {
       await enqueueRoyalV2Job(job.jobId);
     } catch (err) {
@@ -756,7 +790,7 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/approve", async (req, res) => {
 app.post("/api/jobs/:jobId/scenes/:sceneId/reject", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  if (job.niche === "Royal v2" && job.timelineLock?.locked) {
+  if (isRoyalHouseNiche(job.niche) && job.timelineLock?.locked) {
     return res.status(409).json({ error: "Timeline is locked; unlock Royal v2 before changing approval" });
   }
   job.sceneApprovals = job.sceneApprovals || {};
@@ -770,7 +804,7 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/find-better", async (req, res) => {
   // Only place where re-search is allowed: explicit user action.
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  if (job.niche === "Royal v2" && job.timelineLock?.locked) {
+  if (isRoyalHouseNiche(job.niche) && job.timelineLock?.locked) {
     return res.status(409).json({ error: "Timeline is locked; unlock Royal v2 before replacing visuals" });
   }
   const scenes = await loadScenes(job.jobId);
@@ -873,7 +907,7 @@ app.get("/api/jobs/:jobId/render-info", async (req, res) => {
     sceneReviewReady,
     sceneReviewApproved: scenes.length > 0 && approvedCount === scenes.length,
     finalTimelineSaved:
-      job.niche === "Royal v2" ? Boolean(job.timelineLock?.locked) : scenes.length > 0,
+      isRoyalHouseNiche(job.niche) ? Boolean(job.timelineLock?.locked) : scenes.length > 0,
     libraryBuilt,
     qaCanRender: qa?.canRender !== false,
   };
@@ -881,10 +915,10 @@ app.get("/api/jobs/:jobId/render-info", async (req, res) => {
   if (!sceneReviewReady) blockedReasons.push("Scene Review required before render");
   if (!libraryBuilt && scenes.length === 0) blockedReasons.push("Visual library not built yet");
   if (approvedCount === 0) blockedReasons.push("no approved scenes");
-  if (job.niche === "Royal v2" && approvedCount !== scenes.length) {
+  if (isRoyalHouseNiche(job.niche) && approvedCount !== scenes.length) {
     blockedReasons.push("All Royal v2 scenes must be approved");
   }
-  if (job.niche === "Royal v2" && !job.timelineLock?.locked) {
+  if (isRoyalHouseNiche(job.niche) && !job.timelineLock?.locked) {
     blockedReasons.push("Royal v2 final timeline is not locked");
   }
   if (qa && qa.canRender === false) {
@@ -1097,7 +1131,7 @@ app.delete("/api/jobs/:jobId", async (req, res) => {
 app.post("/api/jobs/:jobId/scenes/:sceneId/mark-needs-better", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  if (job.niche === "Royal v2" && job.timelineLock?.locked) {
+  if (isRoyalHouseNiche(job.niche) && job.timelineLock?.locked) {
     return res.status(409).json({ error: "Timeline is locked; unlock Royal v2 before editing" });
   }
   job.sceneApprovals = job.sceneApprovals || {};
@@ -1152,7 +1186,7 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/use-source", async (req, res) => {
   const prefer = String(req.body?.prefer || "");
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  if (job.niche === "Royal v2" && job.timelineLock?.locked) {
+  if (isRoyalHouseNiche(job.niche) && job.timelineLock?.locked) {
     return res.status(409).json({ error: "Timeline is locked; unlock Royal v2 before replacing visuals" });
   }
   const scenes = await loadScenes(job.jobId);
@@ -1212,6 +1246,120 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/use-source", async (req, res) => {
   });
   await runFinalQA(job.jobId, scenes);
   res.json({ ok: true, scene });
+});
+
+app.post("/api/jobs/:jobId/human-review", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  const { markHumanReview } = await import("./visualIntelligence/royalV2/humanReview.js");
+  const result = await markHumanReview(job.jobId);
+  res.json({ ok: true, ...result });
+});
+
+app.post("/api/jobs/:jobId/vision-fix", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  res.json({ ok: true, started: true, jobId: job.jobId });
+  void import("./visualIntelligence/royalV2/visionFixScenes.js")
+    .then(({ visionFixJob }) => visionFixJob(job.jobId))
+    .catch((err) => console.error("[vision-fix] failed", job.jobId, err));
+});
+
+app.post("/api/jobs/:jobId/fill-visuals", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  res.json({ ok: true, started: true, jobId: job.jobId });
+  void import("./visualIntelligence/royalV2/fillTimedScenes.js")
+    .then(async ({ fillTimedScenes }) => {
+      await fillTimedScenes(job.jobId);
+      const { visionFixJob } = await import("./visualIntelligence/royalV2/visionFixScenes.js");
+      await visionFixJob(job.jobId);
+    })
+    .catch((err) => console.error("[fill] failed", job.jobId, err));
+});
+
+app.post("/api/jobs/:jobId/scene-times", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  const updates = (req.body?.times || []) as Array<{ sceneId?: string; startTime?: number; endTime?: number }>;
+  if (!Array.isArray(updates) || !updates.length) {
+    return res.status(400).json({ error: "times array is required" });
+  }
+  const byId = new Map(
+    updates
+      .filter((item) => item.sceneId && Number.isFinite(item.startTime) && Number.isFinite(item.endTime))
+      .map((item) => [item.sceneId as string, item])
+  );
+  const scenes = await loadScenes(job.jobId);
+  let changed = 0;
+  for (const scene of scenes) {
+    const next = byId.get(scene.sceneId);
+    if (!next) continue;
+    const start = Number(next.startTime);
+    const end = Number(next.endTime);
+    if (end <= start) continue;
+    scene.startTime = start;
+    scene.endTime = end;
+    scene.duration = Number((end - start).toFixed(3));
+    changed += 1;
+  }
+  const assignmentPath = jobDataFile("visual-intelligence-final-assignment", job.jobId);
+  const existing = (await readJson<Record<string, unknown>>(assignmentPath)) || { jobId: job.jobId };
+  await writeJson(assignmentPath, { ...existing, scenes });
+  const royalPath = jobDataFile("royal-v2-final-assignment", job.jobId);
+  const royal = await readJson<Record<string, unknown>>(royalPath);
+  if (royal) await writeJson(royalPath, { ...royal, scenes });
+  res.json({ ok: true, changed, scenes: scenes.length });
+});
+
+app.post("/api/jobs/:jobId/scenes/:sceneId/split", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  const parts = (req.body?.parts || []) as Array<{
+    narrationText?: string;
+    startTime?: number;
+    endTime?: number;
+  }>;
+  if (parts.length < 2 || parts.some((part) => !part.narrationText?.trim())) {
+    return res.status(400).json({ error: "Two narration parts are required" });
+  }
+  const scenes = await loadScenes(job.jobId);
+  const index = scenes.findIndex((scene) => scene.sceneId === req.params.sceneId);
+  if (index < 0) return res.status(404).json({ error: "Scene not found" });
+  const original = scenes[index];
+  const created = parts.map((part, partIndex) => {
+    const start = Number(part.startTime);
+    const end = Number(part.endTime);
+    const next = {
+      ...original,
+      sceneId: partIndex === 0 ? original.sceneId : `${original.sceneId}-b`,
+      narrationText: String(part.narrationText).trim(),
+      startTime: start,
+      endTime: end,
+      duration: Number((end - start).toFixed(3)),
+    };
+    if (partIndex > 0) {
+      next.selectedVisualId = "";
+      next.approvedVisualId = undefined;
+      next.reasonSelected = "Split from the previous line. Visual not moved.";
+      next.needsBetterVisual = true;
+    }
+    return next;
+  });
+  scenes.splice(index, 1, ...created);
+  const assignmentPath = jobDataFile("visual-intelligence-final-assignment", job.jobId);
+  const existing = (await readJson<Record<string, unknown>>(assignmentPath)) || { jobId: job.jobId };
+  await writeJson(assignmentPath, { ...existing, scenes });
+  const royalPath = jobDataFile("royal-v2-final-assignment", job.jobId);
+  const royal = await readJson<Record<string, unknown>>(royalPath);
+  if (royal) await writeJson(royalPath, { ...royal, scenes });
+  const scriptLine = original.narrationText.trim();
+  if (job.script.includes(scriptLine)) {
+    job.script = job.script.replace(scriptLine, created.map((scene) => scene.narrationText).join("\n"));
+    job.updatedAt = new Date().toISOString();
+    await saveJob(job);
+  }
+  res.json({ ok: true, scenes: scenes.length, created: created.map((scene) => scene.sceneId) });
 });
 
 app.post("/api/jobs/:jobId/approve-all", async (req, res) => {
@@ -1380,13 +1528,13 @@ app.post("/api/jobs/:jobId/render", async (req, res) => {
   }
   const jobCheck = await loadJob(req.params.jobId);
   if (!jobCheck) return res.status(404).json({ error: "Job not found" });
-  if (jobCheck.niche === "Royal v2" && !jobCheck.timelineLock?.locked) {
+  if (isRoyalHouseNiche(jobCheck.niche) && !jobCheck.timelineLock?.locked) {
     return res.status(400).json({ error: "Royal v2 timeline must be approved and locked before render" });
   }
   let scenesCheck: TimelineScene[];
   try {
     scenesCheck =
-      jobCheck.niche === "Royal v2"
+      isRoyalHouseNiche(jobCheck.niche)
         ? await loadVerifiedRoyalV2Timeline(req.params.jobId)
         : await loadScenes(req.params.jobId);
   } catch (error) {
@@ -1509,6 +1657,10 @@ app.listen(config.port, () => {
 void resumePipelineQueue().catch((error) => {
   console.error("[pipeline-queue] resume failed", error);
 });
+
+void import("./visualIntelligence/royalV2/visionFixScenes.js")
+  .then(({ resumeVisionPasses }) => resumeVisionPasses())
+  .catch((error) => console.error("[vision-fix] resume failed", error));
 
 // silence unused import in case tree shaking
 void assembleTimeline;

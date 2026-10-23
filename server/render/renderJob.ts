@@ -41,13 +41,13 @@ export async function renderJob(
   }
 
   const assignment =
-    job.niche === "Royal v2"
+    (job.niche === "Royal v2" || job.niche === "Royal v3")
       ? null
       : await readJson<{ scenes: TimelineScene[] }>(
           jobDataFile("visual-intelligence-final-assignment", jobId)
         );
   const scenes =
-    job.niche === "Royal v2"
+    (job.niche === "Royal v2" || job.niche === "Royal v3")
       ? await loadVerifiedRoyalV2Timeline(jobId)
       : assignment?.scenes || [];
   if (!scenes.length) throw new Error("No Scene Review assignment found");

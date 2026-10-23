@@ -5,7 +5,13 @@ export type NicheStyle =
   | "Mystery v2"
   | "Royal v1"
   | "Royal v2"
+  | "Royal v3"
   | "War v1";
+
+/** Royal v2 and Royal v3 share the library-first documentary pipeline. */
+export function isRoyalHouseNiche(niche: string | null | undefined): boolean {
+  return niche === "Royal v2" || niche === "Royal v3";
+}
 
 export type JobStatus =
   | "uploaded"
@@ -490,6 +496,8 @@ export interface TimelineScene {
   markForAiRevise?: boolean;
   /** Free-form editor notes (effects / SFX / revision hints) */
   editorNotes?: string;
+  /** Human review bucket. At most 40 scenes per job across these three. */
+  humanReview?: "fix" | "doubt" | "specific";
 }
 
 export interface ImportantEntityDetection {

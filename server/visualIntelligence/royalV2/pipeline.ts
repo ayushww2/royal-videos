@@ -39,6 +39,46 @@ const STAGE_PROGRESS: Partial<Record<JobRecord["status"], number>> = {
   scene_review_ready: 100,
 };
 
+function scenesFromBeats(beats: Array<{
+  beatId: string;
+  startTime: number;
+  endTime: number;
+  duration: number;
+  narrationText: string;
+  beatType?: TimelineScene["beatType"];
+  mainPerson?: string;
+  secondaryPeople?: string[];
+  pairOrGroup?: string[];
+  specificPlace?: string;
+  contextType?: string;
+  viewerShouldSee?: string;
+  visualNeed?: string;
+}>): TimelineScene[] {
+  return beats.map((beat, index) => ({
+    sceneId: `scene-${index + 1}`,
+    beatId: beat.beatId,
+    startTime: beat.startTime,
+    endTime: beat.endTime,
+    duration: beat.duration,
+    narrationText: beat.narrationText,
+    selectedVisualId: "",
+    source: "cached_approved",
+    reasonSelected: "Scene timed from the script. Clip not filled yet.",
+    confidence: 0,
+    fallbackUsed: false,
+    needsBetterVisual: true,
+    matchType: "needs_better_visual",
+    viewerShouldSee: beat.viewerShouldSee || beat.visualNeed || "",
+    warnings: ["Clip not filled yet"],
+    beatType: beat.beatType,
+    mainPerson: beat.mainPerson,
+    secondaryPeople: beat.secondaryPeople,
+    pairOrGroup: beat.pairOrGroup,
+    specificPlace: beat.specificPlace,
+    contextType: beat.contextType,
+  }));
+}
+
 function isCriticalFlaggedScene(scene: TimelineScene): boolean {
   if (!scene.selectedVisualId) return true;
   if (scene.confidence < 0.7 && scene.needsBetterVisual) return true;
@@ -99,7 +139,9 @@ function attachEffects(
 export async function runRoyalV2Pipeline(jobId: string): Promise<JobRecord> {
   const job = await loadJob(jobId);
   if (!job) throw new Error(`Job not found: ${jobId}`);
-  if (job.niche !== "Royal v2") throw new Error("Royal v2 pipeline requires a Royal v2 job");
+  if (job.niche !== "Royal v2" && job.niche !== "Royal v3") {
+    throw new Error("Royal pipeline requires a Royal v2 or Royal v3 job");
+  }
   const stageStarted = new Map<JobRecord["status"], number>();
 
   const update = async (status: JobRecord["status"], patch?: Partial<JobRecord>) => {
@@ -141,6 +183,49 @@ export async function runRoyalV2Pipeline(jobId: string): Promise<JobRecord> {
     await update("beat_breakdown");
     const beatResult = await createRoyalV2Beats(job, context);
     job.gptCallsUsed = (job.gptCallsUsed || 0) + beatResult.gptCallsUsed;
+
+    if (job.niche === "Royal v3") {
+      const scenes = scenesFromBeats(beatResult.beats);
+      await writeJson(jobDataFile("visual-intelligence-final-assignment", job.jobId), {
+        jobId: job.jobId,
+        scenes,
+      });
+      await writeJson(jobDataFile("royal-v2-final-assignment", job.jobId), {
+        jobId: job.jobId,
+        scenes,
+        note: "Timed scenes only. Clip fill comes later.",
+      });
+      const stats: PipelineStats = {
+        visualBeats: beatResult.beats.length,
+        queryPacks: 0,
+        braveQueriesUsed: 0,
+        imageQueriesUsed: 0,
+        candidatesCollected: 0,
+        candidatesFiltered: 0,
+        gptJudged: 0,
+        approvedLibrarySize: 0,
+        finalScenes: scenes.length,
+        fallbackScenes: scenes.length,
+        needsBetterVisualScenes: scenes.length,
+        wrongEntityWarnings: 0,
+        repeatedVisualWarnings: 0,
+        averageEditorScore: 0,
+        exactMatchScenes: 0,
+        rawFootagePercent: 0,
+        exactPersonMatches: 0,
+        exactPlaceMatches: 0,
+        weakScenes: scenes.length,
+        overusedVisuals: 0,
+      };
+      await update("scene_review_ready", {
+        stats,
+        sceneApprovals: Object.fromEntries(scenes.map((scene) => [scene.sceneId, "pending" as const])),
+        render: { status: "idle" },
+        error: undefined,
+      });
+      console.log(`[royal-v3] ${job.jobId} timed scenes=${scenes.length} (clip fill skipped)`);
+      return job;
+    }
 
     await update("library_candidate_collection");
     const { assets } = await collectRoyalV2CandidatePool(job.jobId, beatResult.beats);

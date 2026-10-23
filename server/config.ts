@@ -7,6 +7,7 @@ export const ROOT_DIR = path.resolve(__dirname, "..");
 
 dotenv.config();
 dotenv.config({ path: path.join(ROOT_DIR, "contactbox.env"), override: false });
+dotenv.config({ path: path.join(ROOT_DIR, "credentials.env"), override: false });
 
 export function requireEnv(name: string): string {
   const value = process.env[name]?.trim();

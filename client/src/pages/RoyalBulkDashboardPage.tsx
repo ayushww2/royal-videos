@@ -51,7 +51,7 @@ export function RoyalBulkDashboardPage() {
     ]);
     setBatches(batchData.batches || []);
     setQueue(batchData.queue);
-    setJobs((jobData.jobs || []).filter((job) => job.niche === "Royal v2"));
+    setJobs((jobData.jobs || []).filter((job) => (job.niche === "Royal v2" || job.niche === "Royal v3")));
   }
 
   useEffect(() => {

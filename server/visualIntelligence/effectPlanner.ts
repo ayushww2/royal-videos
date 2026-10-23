@@ -230,7 +230,7 @@ async function gptOptimizeEffectCopy(params: {
     return params.events;
   }
   // Royal v2 keeps planner-authored public titles; GPT must not invent niche labels or director text.
-  if (params.job.niche === "Royal v2") {
+  if ((params.job.niche === "Royal v2" || params.job.niche === "Royal v3")) {
     return params.events.map((event) => sanitizeRoyalEffectProps(event));
   }
 
@@ -411,7 +411,7 @@ export async function planEditingEffects(params: {
 
   // Per-minute effect budgets tracked while iterating
   const minuteBuckets = new Map<number, number>();
-  const isRoyalV2 = job.niche === "Royal v2";
+  const isRoyalV2 = (job.niche === "Royal v2" || job.niche === "Royal v3");
   const isCelebrityV1 = celebrityRecipeActive(job.niche);
 
   if (isRoyalV2) {

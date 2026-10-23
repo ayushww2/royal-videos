@@ -7,12 +7,15 @@ import {
   formatTime,
   isVideoMediaUrl,
   searchEditorLibrary,
+  searchEditorGoogle,
+  setSceneVisualFromUrl,
   swapTimelineVisual,
+  type GoogleImageHit,
   type LibrarySearchHit,
 } from "../lib/api";
 import type { JobRecord, Scene } from "../lib/types";
 
-type ReviewFilter = "all" | "review" | "approved" | "clips" | "images";
+type ReviewFilter = "all" | "review" | "approved" | "clips" | "images" | "fix" | "doubt" | "specific";
 type InspectorMode = "inspect" | "replace";
 
 function sceneIsVideo(scene: Scene): boolean {
@@ -149,6 +152,9 @@ export function SceneReviewWorkspace() {
   const [searching, setSearching] = useState(false);
   const [libraryQuery, setLibraryQuery] = useState("");
   const [libraryHits, setLibraryHits] = useState<LibrarySearchHit[]>([]);
+  const [googleHits, setGoogleHits] = useState<GoogleImageHit[]>([]);
+  const [replaceSource, setReplaceSource] = useState<"library" | "google">("library");
+  const [libraryKind, setLibraryKind] = useState<"all" | "raw_footage" | "image">("all");
 
   async function load() {
     const data = await api<{
@@ -175,6 +181,7 @@ export function SceneReviewWorkspace() {
   useEffect(() => {
     setLibraryQuery(searchSeed(selected));
     setLibraryHits([]);
+    setGoogleHits([]);
   }, [selected?.sceneId]);
 
   const counts = useMemo(() => {
@@ -192,6 +199,9 @@ export function SceneReviewWorkspace() {
       clips,
       images: scenes.length - clips,
       remaining: Math.max(0, scenes.length - approved),
+      fix: scenes.filter((scene) => scene.humanReview === "fix").length,
+      doubt: scenes.filter((scene) => scene.humanReview === "doubt").length,
+      specific: scenes.filter((scene) => scene.humanReview === "specific").length,
     };
   }, [scenes, approvals]);
 
@@ -210,6 +220,9 @@ export function SceneReviewWorkspace() {
         if (filter === "approved") return approval === "approved";
         if (filter === "clips") return sceneIsVideo(scene);
         if (filter === "images") return !sceneIsVideo(scene);
+        if (filter === "fix") return scene.humanReview === "fix";
+        if (filter === "doubt") return scene.humanReview === "doubt";
+        if (filter === "specific") return scene.humanReview === "specific";
         return true;
       }),
     [scenes, approvals, filter]
@@ -226,6 +239,7 @@ export function SceneReviewWorkspace() {
     setSelectedId("");
     setInspectorMode("inspect");
     setLibraryHits([]);
+    setGoogleHits([]);
   }
 
   function moveSelection(direction: -1 | 1) {
@@ -267,14 +281,44 @@ export function SceneReviewWorkspace() {
     setSearching(true);
     setError("");
     try {
-      const data = await searchEditorLibrary(jobId || "", libraryQuery.trim(), 24, {
-        person: selected.mainPerson,
-      });
-      setLibraryHits(data.assets || []);
+      if (replaceSource === "google") {
+        const data = await searchEditorGoogle(jobId || "", libraryQuery.trim(), 8);
+        setGoogleHits(data.hits || []);
+        setLibraryHits([]);
+      } else {
+        const data = await searchEditorLibrary(jobId || "", libraryQuery.trim(), 24, {
+          mediaType: libraryKind === "all" ? undefined : libraryKind,
+        });
+        setLibraryHits(data.assets || []);
+        setGoogleHits([]);
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setSearching(false);
+    }
+  }
+
+  async function chooseGoogle(hit: GoogleImageHit) {
+    if (!selected || !jobId) return;
+    setBusySceneId(selected.sceneId);
+    setError("");
+    try {
+      await setSceneVisualFromUrl(jobId, selected.sceneId, {
+        url: hit.url,
+        thumbnail: hit.thumbnail,
+        title: hit.title,
+        personName: selected.mainPerson || hit.title,
+      });
+      await load();
+      setInspectorMode("inspect");
+      setLibraryHits([]);
+      setGoogleHits([]);
+      setMessage(`Scene ${selectedIndex + 1} visual replaced from Google.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setBusySceneId("");
     }
   }
 
@@ -345,7 +389,7 @@ export function SceneReviewWorkspace() {
       job={job}
       contentClassName="content-tool"
       actions={
-        job?.niche === "Royal v2" ? (
+        (job?.niche === "Royal v2" || job?.niche === "Royal v3") ? (
           job.timelineLock?.locked ? (
             <button className="btn btn-secondary btn-sm" type="button" onClick={unlockRoyalTimeline}>
               Unlock timeline
@@ -409,6 +453,9 @@ export function SceneReviewWorkspace() {
                   ["approved", `Approved ${counts.approved}`],
                   ["clips", `Clips ${counts.clips}`],
                   ["images", `Images ${counts.images}`],
+                  ["fix", `To be fixed ${counts.fix}`],
+                  ["doubt", `Doubt ${counts.doubt}`],
+                  ["specific", `Specific ${counts.specific}`],
                 ] as Array<[ReviewFilter, string]>
               ).map(([id, label]) => (
                 <button
@@ -589,7 +636,7 @@ export function SceneReviewWorkspace() {
               </div>
             ) : (
               <div className="review-replace">
-                <div className="review-searchbar">
+                <div className="review-kindbar">
                   <button
                     className="btn btn-secondary"
                     type="button"
@@ -597,13 +644,54 @@ export function SceneReviewWorkspace() {
                   >
                     Back
                   </button>
+                  <button
+                    className={`btn ${replaceSource === "library" ? "btn-primary" : "btn-secondary"}`}
+                    type="button"
+                    onClick={() => {
+                      setReplaceSource("library");
+                      setLibraryHits([]);
+                      setGoogleHits([]);
+                    }}
+                  >
+                    Library
+                  </button>
+                  <button
+                    className={`btn ${replaceSource === "google" ? "btn-primary" : "btn-secondary"}`}
+                    type="button"
+                    onClick={() => {
+                      setReplaceSource("google");
+                      setLibraryHits([]);
+                      setGoogleHits([]);
+                    }}
+                  >
+                    Google
+                  </button>
+                  {replaceSource === "library" &&
+                    (
+                      [
+                        ["all", "All"],
+                        ["raw_footage", "Clips"],
+                        ["image", "Images"],
+                      ] as Array<["all" | "raw_footage" | "image", string]>
+                    ).map(([id, label]) => (
+                      <button
+                        key={id}
+                        className={`btn ${libraryKind === id ? "btn-primary" : "btn-secondary"}`}
+                        type="button"
+                        onClick={() => setLibraryKind(id)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                </div>
+                <div className="review-searchbar">
                   <input
                     value={libraryQuery}
                     onChange={(event) => setLibraryQuery(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") void runLibrarySearch();
                     }}
-                    placeholder="Search the Royal library"
+                    placeholder={replaceSource === "google" ? "Search Google Images" : "Search the Royal library"}
                     autoFocus
                   />
                   <button
@@ -616,10 +704,13 @@ export function SceneReviewWorkspace() {
                   </button>
                 </div>
                 <p className="review-search-help">
-                  Search by person, event, place, action or emotion. Select a visual to replace this scene.
+                  {replaceSource === "google"
+                    ? "Search Google Images, then select one to put it on this scene."
+                    : "Search your library. Use Clips or Images to stay in that category."}
                 </p>
                 <div className="review-library-grid">
-                  {libraryHits.map((asset) => (
+                  {replaceSource === "library" &&
+                    libraryHits.map((asset) => (
                     <button
                       key={asset.assetId}
                       type="button"
@@ -644,9 +735,34 @@ export function SceneReviewWorkspace() {
                       <small>{asset.description || asset.mediaType || "Library asset"}</small>
                     </button>
                   ))}
-                  {!searching && libraryHits.length === 0 && (
+                  {replaceSource === "google" &&
+                    googleHits.map((hit) => (
+                      <button
+                        key={hit.url}
+                        type="button"
+                        className="review-library-result"
+                        disabled={busySceneId === selected.sceneId}
+                        onClick={() => void chooseGoogle(hit)}
+                      >
+                        <div className="review-library-thumb">
+                          {hit.thumbnail || hit.url ? (
+                            <img src={hit.thumbnail || hit.url} alt="" loading="lazy" />
+                          ) : (
+                            <span>No preview</span>
+                          )}
+                        </div>
+                        <strong>Google</strong>
+                        <small>{hit.title || hit.source || "Image"}</small>
+                      </button>
+                    ))}
+                  {!searching && replaceSource === "library" && libraryHits.length === 0 && (
                     <div className="review-library-empty">
-                      Search the library to see replacement options.
+                      Search the library to see clips and images.
+                    </div>
+                  )}
+                  {!searching && replaceSource === "google" && googleHits.length === 0 && (
+                    <div className="review-library-empty">
+                      Search Google to see image results.
                     </div>
                   )}
                 </div>

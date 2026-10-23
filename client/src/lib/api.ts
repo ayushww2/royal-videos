@@ -139,6 +139,32 @@ export function searchEditorLibrary(
   );
 }
 
+export type GoogleImageHit = {
+  title: string;
+  url: string;
+  thumbnail?: string;
+  source?: string;
+};
+
+export function searchEditorGoogle(jobId: string, query: string, limit = 8) {
+  const params = new URLSearchParams({ q: query.trim(), limit: String(limit) });
+  return api<{ count: number; hits: GoogleImageHit[]; provider: string }>(
+    `/api/jobs/${jobId}/editor/web-search?${params.toString()}`
+  );
+}
+
+export function setSceneVisualFromUrl(
+  jobId: string,
+  sceneId: string,
+  body: { url: string; title?: string; thumbnail?: string; personName?: string }
+) {
+  return api<{ ok: boolean; scene: Scene }>(`/api/jobs/${jobId}/scenes/${sceneId}/set-visual`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 export function fetchEffectPresets() {
   return api<{ presets: EffectPresetOption[] }>("/api/knowledge-editor/effect-presets");
 }

@@ -47,6 +47,9 @@ export interface JobRecord {
   error?: string;
   createdAt: string;
   updatedAt: string;
+  /** Display-only, computed on GET /api/jobs. Not stored on the job file. */
+  sceneTotal?: number;
+  scenesFilled?: number;
   batchId?: string;
   progressPercent?: number;
   gptCallsUsed?: number;
@@ -142,6 +145,7 @@ export interface Scene {
   pairOrGroup?: string[];
   specificPlace?: string;
   contextType?: string;
+  humanReview?: "fix" | "doubt" | "specific";
   assetUsageCountVideo?: number;
   assetUsageCountCurrentMinute?: number;
   entityUsageCount?: number;
