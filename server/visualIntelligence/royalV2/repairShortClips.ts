@@ -471,6 +471,7 @@ export async function repairShortClips(jobId: string, options: { apply: boolean;
       selectedVisualId: clip.assetId,
       approvedVisualId: clip.assetId,
       source: "raw_footage" as const,
+      rawFootageUsed: true,
       reasonSelected: `${clip.person}: ${clip.title || clip.description || "library clip"}`,
     };
   });
@@ -485,6 +486,7 @@ export async function repairShortClips(jobId: string, options: { apply: boolean;
         selectedVisualId: updated.selectedVisualId,
         approvedVisualId: updated.approvedVisualId,
         source: updated.source,
+        rawFootageUsed: true,
         reasonSelected: updated.reasonSelected,
       };
     });
@@ -609,6 +611,7 @@ export async function replaceScene3LecternClip() {
     selectedVisualId: asset.assetId,
     approvedVisualId: asset.assetId,
     source: "raw_footage",
+    rawFootageUsed: true,
     reasonSelected: `${asset.person}: ${asset.title || asset.description || "library clip"}`,
   };
   const nextScenes = scenes.map((item) => (item.sceneId === "scene-3" ? nextScene : item));
@@ -624,6 +627,7 @@ export async function replaceScene3LecternClip() {
               selectedVisualId: nextScene.selectedVisualId,
               approvedVisualId: nextScene.approvedVisualId,
               source: nextScene.source,
+              rawFootageUsed: true,
               reasonSelected: nextScene.reasonSelected,
             }
           : item

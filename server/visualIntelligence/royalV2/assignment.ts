@@ -151,7 +151,10 @@ function sceneFromSelection(
     transition: "cut",
     warnings: [...new Set(warnings)],
     confidenceScores: toApprovedRoyalVisual(item, [beat.beatId]).confidenceScores,
-    rawFootageUsed: item.asset.mediaType === "raw_footage",
+    rawFootageUsed:
+      item.asset.mediaType === "raw_footage" ||
+      item.asset.mediaType === "trusted_clip" ||
+      item.asset.mediaType === "trusted_clips",
     beatType: beat.beatType,
     mainPerson: beat.mainPerson,
     secondaryPeople: beat.secondaryPeople,

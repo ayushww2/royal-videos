@@ -246,6 +246,7 @@ async function runVisionFixJob(jobId: string): Promise<{ checked: number; kept: 
         scene.selectedVisualId = asset.assetId;
         scene.approvedVisualId = asset.assetId;
         scene.source = visual.source;
+        scene.rawFootageUsed = asset.mediaType !== "image";
         scene.reasonSelected = `${asset.person}: ${asset.title || asset.description || "vision replacement"}`;
         scene.softApproval = "pass";
         scene.softApprovalMode = "vision";
