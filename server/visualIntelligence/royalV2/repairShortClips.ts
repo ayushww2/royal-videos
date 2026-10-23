@@ -542,3 +542,132 @@ export async function repairShortClips(jobId: string, options: { apply: boolean;
     })),
   };
 }
+
+const SCENE3_JOB = "e06fa474-9a32-455d-850a-a1c390faf48d";
+const SCENE3_ASSET = "royal-family-prince-william-trusted-0016";
+
+/** One approved swap: scene 3 on the SIGNS FINAL ORDER job, lectern clip only. */
+export async function replaceScene3LecternClip() {
+  const jobId = SCENE3_JOB;
+  const job = await loadJob(jobId);
+  if (!job) throw new Error("Job not found");
+  const statusBefore = job.status;
+  const approvalBefore = (job.sceneApprovals || {})["scene-3"];
+  const assignmentPath = jobDataFile("visual-intelligence-final-assignment", jobId);
+  const royalPath = jobDataFile("royal-v2-final-assignment", jobId);
+  const libraryPath = jobDataFile("visual-intelligence-approved-library", jobId);
+  const assignment = (await readJson<{ scenes?: TimelineScene[] } & Record<string, unknown>>(assignmentPath)) || {};
+  const scenes = assignment.scenes || [];
+  const index = scenes.findIndex((scene) => scene.sceneId === "scene-3");
+  if (index < 0) throw new Error("scene-3 not found");
+  const scene = scenes[index];
+  const textBefore = scene.narrationText;
+  const durationBefore = scene.duration;
+  const startBefore = scene.startTime;
+  const endBefore = scene.endTime;
+  const assets = await loadRoyalLibraryAssets();
+  const asset = assets.find((item) => item.assetId === SCENE3_ASSET);
+  if (!asset) throw new Error("Lectern clip not in the library");
+  const url = royalAssetUrl(asset);
+  const probed = await probeDuration(url, new Map());
+  if (!probed) throw new Error("Could not measure the lectern clip");
+  const uses: number[] = [];
+  scenes.forEach((item, itemIndex) => {
+    const id = item.selectedVisualId || item.approvedVisualId;
+    if (id === SCENE3_ASSET || (item.reasonSelected || "").includes(SCENE3_ASSET)) uses.push(itemIndex);
+  });
+  const approvedDoc = (await readJson<{ approved?: ApprovedVisual[] } & Record<string, unknown>>(libraryPath)) || {};
+  const approved = approvedDoc.approved || [];
+  for (const visual of approved) {
+    if (visual.approvedVisualId !== SCENE3_ASSET && visual.libraryAssetId !== SCENE3_ASSET) continue;
+    if (!visual.filePathOrUrl?.includes("trusted-0016")) continue;
+  }
+  scenes.forEach((item, itemIndex) => {
+    const visual = approved.find((entry) => entry.approvedVisualId === (item.approvedVisualId || item.selectedVisualId));
+    const pathName = fileKeyFromUrl(visual?.filePathOrUrl);
+    if (pathName.endsWith("royal-family-prince-william-trusted-0016.mp4") || item.selectedVisualId === SCENE3_ASSET) {
+      if (!uses.includes(itemIndex)) uses.push(itemIndex);
+    }
+  });
+  const others = uses.filter((item) => item !== index);
+  if (others.length >= 3) throw new Error("Lectern clip is already used 3 times");
+  if (others.some((item) => Math.abs(item - index) < 51)) {
+    throw new Error("Lectern clip is already used within 51 scenes of scene 3");
+  }
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupDir = path.join(config.dataPath, "backups", "scene3-lectern", stamp, jobId);
+  await fs.mkdir(backupDir, { recursive: true });
+  for (const filePath of [assignmentPath, royalPath, libraryPath, path.join(config.storagePath, "jobs", jobId, "job.json")]) {
+    try {
+      await fs.copyFile(filePath, path.join(backupDir, path.basename(filePath)));
+    } catch {
+      /* optional royal copy */
+    }
+  }
+  const nextScene: TimelineScene = {
+    ...scene,
+    selectedVisualId: asset.assetId,
+    approvedVisualId: asset.assetId,
+    source: "raw_footage",
+    reasonSelected: `${asset.person}: ${asset.title || asset.description || "library clip"}`,
+  };
+  const nextScenes = scenes.map((item) => (item.sceneId === "scene-3" ? nextScene : item));
+  await writeJson(assignmentPath, { ...assignment, scenes: nextScenes });
+  const royal = await readJson<Record<string, unknown>>(royalPath);
+  if (royal && Array.isArray(royal.scenes)) {
+    await writeJson(royalPath, {
+      ...royal,
+      scenes: (royal.scenes as TimelineScene[]).map((item) =>
+        item.sceneId === "scene-3"
+          ? {
+              ...item,
+              selectedVisualId: nextScene.selectedVisualId,
+              approvedVisualId: nextScene.approvedVisualId,
+              source: nextScene.source,
+              reasonSelected: nextScene.reasonSelected,
+            }
+          : item
+      ),
+    });
+  }
+  if (!approved.some((entry) => entry.approvedVisualId === asset.assetId)) {
+    const extra: ApprovedVisual = {
+      approvedVisualId: asset.assetId,
+      source: "raw_footage",
+      filePathOrUrl: url,
+      thumbnail: asset.thumbKey ? royalAssetUrl({ ...asset, r2Key: asset.thumbKey }) : undefined,
+      matchedPeople: [asset.person],
+      matchedCompanies: [],
+      matchedPlaces: [],
+      matchedEvents: [],
+      matchedDocuments: [],
+      matchedObjects: [],
+      allowedBeatIds: [],
+      bestUseCase: asset.title || asset.description || asset.person,
+      confidenceScores: blankScores(),
+      reuseLimit: 3,
+      durationRecommendation: probed,
+      warnings: [],
+      candidateId: asset.assetId,
+      libraryAssetId: asset.assetId,
+      mediaType: "raw_footage",
+    };
+    await writeJson(libraryPath, { ...approvedDoc, approved: [...approved, extra] });
+  }
+  const jobAfter = await loadJob(jobId);
+  const saved = nextScenes[index];
+  return {
+    ok: true,
+    backupDir,
+    clipSeconds: Number(probed.toFixed(2)),
+    description: asset.description || asset.title,
+    assetId: asset.assetId,
+    statusBefore,
+    statusAfter: jobAfter?.status,
+    approvalBefore,
+    approvalAfter: (jobAfter?.sceneApprovals || {})["scene-3"],
+    textUnchanged: saved.narrationText === textBefore,
+    timingUnchanged: saved.duration === durationBefore && saved.startTime === startBefore && saved.endTime === endBefore,
+    otherScenesUnchanged: nextScenes.filter((item, itemIndex) => itemIndex !== index).every((item, itemIndex) => item === scenes.filter((_, j) => j !== index)[itemIndex]),
+  };
+}

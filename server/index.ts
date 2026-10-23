@@ -1249,6 +1249,18 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/use-source", async (req, res) => {
   res.json({ ok: true, scene });
 });
 
+app.post("/api/jobs/:jobId/replace-scene3-lectern", async (req, res) => {
+  try {
+    if (req.params.jobId !== "e06fa474-9a32-455d-850a-a1c390faf48d") {
+      return res.status(404).json({ error: "Not the requested job" });
+    }
+    const { replaceScene3LecternClip } = await import("./visualIntelligence/royalV2/repairShortClips.js");
+    res.json(await replaceScene3LecternClip());
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 app.post("/api/jobs/:jobId/raise-clip-share", async (req, res) => {
   try {
     const { repairShortClips, SHORT_CLIP_REPAIR_JOBS } = await import(
