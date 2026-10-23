@@ -44,7 +44,7 @@ export async function enqueueRoyalV2Job(jobId: string): Promise<void> {
   const job = await loadJob(jobId);
   if (!job || (job.niche !== "Royal v2" && job.niche !== "Royal v3")) throw new Error("Cannot queue non-Royal-v2 job");
   if (
-    ["scene_review_ready", "ready_for_scene_review", "approved", "completed", "rendering"].includes(
+    ["scene_review_ready", "ready_for_scene_review", "approved", "finalized", "completed", "rendering"].includes(
       job.status,
     )
   ) {
@@ -68,6 +68,7 @@ export async function resumeRoyalV2Queue(): Promise<void> {
         "scene_review_ready",
         "ready_for_scene_review",
         "approved",
+        "finalized",
         "rendering",
         "completed",
         "failed",

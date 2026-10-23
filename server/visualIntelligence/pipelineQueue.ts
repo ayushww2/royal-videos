@@ -28,6 +28,7 @@ const DONE = new Set([
   "scene_review_ready",
   "ready_for_scene_review",
   "approved",
+  "finalized",
   "completed",
   "rendering",
   "render_queued",

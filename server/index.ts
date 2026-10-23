@@ -890,6 +890,7 @@ app.get("/api/jobs/:jobId/render-info", async (req, res) => {
     "ready_for_scene_review",
     "scene_review_ready",
     "approved",
+    "finalized",
     "completed",
     "rendering",
   ]);

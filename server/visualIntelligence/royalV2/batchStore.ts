@@ -25,7 +25,7 @@ export async function refreshRoyalV2Batch(batchId?: string): Promise<void> {
   );
   const failed = jobs.filter((job) => job.status === "failed").length;
   const review = jobs.filter((job) =>
-    ["scene_review_ready", "ready_for_scene_review", "approved", "rendering", "completed"].includes(
+    ["scene_review_ready", "ready_for_scene_review", "approved", "finalized", "rendering", "completed"].includes(
       job.status,
     ),
   ).length;

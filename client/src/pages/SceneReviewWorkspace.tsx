@@ -351,7 +351,7 @@ export function SceneReviewWorkspace() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lockedBy: "manager" }),
       });
-      setMessage("Timeline approved and locked.");
+      setMessage("Every scene is approved. This job is finalized and locked.");
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));

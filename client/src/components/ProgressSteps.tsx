@@ -29,7 +29,7 @@ export function ProgressSteps({
           { key: "weak_scene_repair", label: "Weak scene repair" },
           { key: "effect_planning", label: "Remotion effect planning" },
           { key: "scene_review_ready", label: "Scene review ready" },
-          { key: "approved", label: "Approved & locked" },
+          { key: "finalized", label: "Finalized" },
           { key: "rendering", label: "Shotstack rendering" },
           { key: "completed", label: "Completed" },
         ] as Array<{ key: JobStatus; label: string }>

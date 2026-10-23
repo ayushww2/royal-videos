@@ -55,8 +55,19 @@ export async function lockRoyalV2Timeline(
     timelineHash: hash,
     lockedAt,
   });
-  job.timelineLock = { locked: true, hash, lockedAt, lockedBy, sceneCount: scenes.length };
-  job.status = "approved";
+  const statusBeforeLock =
+    job.status === "finalized"
+      ? job.timelineLock?.statusBeforeLock || "scene_review_ready"
+      : job.status;
+  job.timelineLock = {
+    locked: true,
+    hash,
+    lockedAt,
+    lockedBy,
+    sceneCount: scenes.length,
+    statusBeforeLock,
+  };
+  job.status = "finalized";
   job.updatedAt = lockedAt;
   await saveJob(job);
   return { hash, sceneCount: scenes.length, lockedAt };
@@ -72,8 +83,12 @@ export async function unlockRoyalV2Timeline(jobId: string, unlockedBy = "manager
     unlockedAt: new Date().toISOString(),
     unlockedBy,
   });
+  const restore =
+    job.timelineLock?.statusBeforeLock && job.timelineLock.statusBeforeLock !== "finalized"
+      ? job.timelineLock.statusBeforeLock
+      : "scene_review_ready";
   job.timelineLock = undefined;
-  job.status = "scene_review_ready";
+  job.status = restore;
   job.updatedAt = new Date().toISOString();
   await saveJob(job);
 }
