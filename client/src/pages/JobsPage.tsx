@@ -68,7 +68,15 @@ export function JobsPage() {
     return numbers;
   }, [jobs]);
 
-  const visible = day === "all" ? jobs : jobs.filter((job) => submittedDay(job.createdAt) === day);
+  const visible = useMemo(() => {
+    const filtered = day === "all" ? jobs : jobs.filter((job) => submittedDay(job.createdAt) === day);
+    return [...filtered].sort((a, b) => {
+      const dayA = submittedDay(a.createdAt);
+      const dayB = submittedDay(b.createdAt);
+      if (dayA !== dayB) return dayB.localeCompare(dayA);
+      return a.createdAt.localeCompare(b.createdAt) || a.jobId.localeCompare(b.jobId);
+    });
+  }, [jobs, day]);
 
   async function remove(jobId: string) {
     if (!confirm("Delete this job? Reports can be kept on disk.")) return;
