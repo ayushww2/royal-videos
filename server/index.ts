@@ -1249,6 +1249,21 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/use-source", async (req, res) => {
   res.json({ ok: true, scene });
 });
 
+app.post("/api/jobs/:jobId/repair-short-clips", async (req, res) => {
+  try {
+    const { repairShortClips, SHORT_CLIP_REPAIR_JOBS } = await import(
+      "./visualIntelligence/royalV2/repairShortClips.js"
+    );
+    if (!SHORT_CLIP_REPAIR_JOBS.has(req.params.jobId)) {
+      return res.status(404).json({ error: "Job is outside the short-clip repair set" });
+    }
+    const result = await repairShortClips(req.params.jobId, { apply: req.body?.apply === true });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 app.post("/api/jobs/:jobId/human-review", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
