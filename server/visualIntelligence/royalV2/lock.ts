@@ -32,7 +32,15 @@ export async function lockRoyalV2Timeline(
     jobDataFile("visual-intelligence-final-qa", jobId)
   );
   if (qa?.canRender === false) {
-    throw new Error(`Final QA blocks locking: ${(qa.criticalIssues || []).join("; ")}`);
+    // Pipeline scores sit under 0.5 on most library and Google stills. A manager who
+    // approved every scene is not blocked by that score. Missing visuals, fallback
+    // cards, and wrong-context issues still stop the lock.
+    const blocking = (qa.criticalIssues || []).filter((issue) => !/confidence below \d+/i.test(issue));
+    if (blocking.length) {
+      const sample = blocking.slice(0, 3).join("; ");
+      const more = blocking.length > 3 ? ` (+${blocking.length - 3} more)` : "";
+      throw new Error(`Final QA blocks locking (${blocking.length}): ${sample}${more}`);
+    }
   }
 
   const hash = royalTimelineHash(scenes);

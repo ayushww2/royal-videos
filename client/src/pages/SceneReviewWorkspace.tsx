@@ -390,15 +390,20 @@ export function SceneReviewWorkspace() {
       contentClassName="content-tool"
       actions={
         (job?.niche === "Royal v2" || job?.niche === "Royal v3") ? (
-          job.timelineLock?.locked ? (
-            <button className="btn btn-secondary btn-sm" type="button" onClick={unlockRoyalTimeline}>
-              Unlock timeline
-            </button>
-          ) : (
-            <button className="btn btn-primary btn-sm" type="button" onClick={lockRoyalTimeline}>
-              Approve all & lock
-            </button>
-          )
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+            {error ? (
+              <span style={{ color: "#fecaca", fontSize: 13, maxWidth: 420 }}>{error}</span>
+            ) : null}
+            {job.timelineLock?.locked ? (
+              <button className="btn btn-secondary btn-sm" type="button" onClick={unlockRoyalTimeline}>
+                Unlock timeline
+              </button>
+            ) : (
+              <button className="btn btn-primary btn-sm" type="button" onClick={lockRoyalTimeline}>
+                Approve all & lock
+              </button>
+            )}
+          </span>
         ) : undefined
       }
     >
