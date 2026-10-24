@@ -259,8 +259,6 @@ export const ClassicBlueWhiteLowerThird: React.FC<
   ClassicLowerThirdProps
 > = ({
   primaryText,
-  secondaryText,
-  tagText,
   durationFrames = 90,
   showPresetLabel = false,
 }) => {
@@ -289,9 +287,6 @@ export const ClassicBlueWhiteLowerThird: React.FC<
       }
     );
 
-  const visible =
-    enter * exit;
-
   return (
     <AbsoluteFill
       style={{
@@ -303,116 +298,70 @@ export const ClassicBlueWhiteLowerThird: React.FC<
         style={{
           position:
             "absolute",
-          left:
-            110 -
-            (1 - enter) *
-              140,
-          bottom: 72,
-          width: 720,
-          height: 165,
-          opacity: visible,
+          left: 110,
+          bottom: 78,
+          width: "max-content",
+          height: 140,
+          transform:
+            `translateX(-${((1 - enter) + (1 - exit)) * 190}%)`,
         }}
       >
         <div
           style={{
             position:
               "absolute",
-            left: 0,
-            top: 36,
-            width: 590,
-            height: 106,
+            left: 22,
+            top: 38,
+            width: "100%",
+            height: 94,
+            border:
+              "5px solid rgba(255,255,255,0.96)",
+            boxSizing:
+              "border-box",
+          }}
+        />
+
+        <div
+          style={{
+            position:
+              "relative",
+            top: 20,
+            height: 94,
+            width: "fit-content",
+            display: "flex",
+            alignItems: "center",
+            padding:
+              "0 30px",
+            boxSizing:
+              "border-box",
             background:
-              "linear-gradient(90deg, #102D6B 0%, #244FA8 100%)",
+              "linear-gradient(90deg, #102D6B 0%, #2558B8 55%, #173B83 100%)",
             boxShadow:
               "0 14px 35px rgba(0,0,0,0.34)",
           }}
-        />
-
-        <div
-          style={{
-            position:
-              "absolute",
-            left: 30,
-            top: 56,
-            color: "white",
-            fontFamily:
-              "Georgia, serif",
-            fontWeight: 700,
-            fontSize: 34,
-            lineHeight: 1,
-            textTransform:
-              "uppercase",
-            textShadow:
-              "2px 2px 0 rgba(0,0,0,0.58)",
-          }}
         >
-          {primaryText}
-        </div>
-
-        {secondaryText ? (
           <div
             style={{
-              position:
-                "absolute",
-              left: 30,
-              top: 108,
-              color:
-                "#F3F4F6",
+              color: "#FFFFFF",
               fontFamily:
-                "Inter, Arial, sans-serif",
-              fontWeight: 850,
-              fontSize: 20,
-              letterSpacing: 0.7,
-              textTransform:
-                "uppercase",
-              textShadow:
-                "1px 1px 0 rgba(0,0,0,0.58)",
-            }}
-          >
-            {secondaryText}
-          </div>
-        ) : null}
-
-        <div
-          style={{
-            position:
-              "absolute",
-            left: 575,
-            top: 82,
-            width: 68,
-            height: 66,
-            borderLeft:
-              "6px solid white",
-            borderBottom:
-              "6px solid white",
-            opacity: 0.92,
-          }}
-        />
-
-        {tagText ? (
-          <div
-            style={{
-              position:
-                "absolute",
-              left: 0,
-              top: 6,
-              padding:
-                "8px 14px",
-              background:
-                "rgba(0,0,0,0.64)",
-              color: "white",
-              fontFamily:
-                "Inter, Arial, sans-serif",
+                "Georgia, 'Times New Roman', serif",
               fontWeight: 900,
-              fontSize: 14,
-              letterSpacing: 1.5,
+              fontSize: 42,
+              lineHeight: 1,
+              letterSpacing: 0.4,
+              whiteSpace:
+                "nowrap",
               textTransform:
                 "uppercase",
+              WebkitTextStroke:
+                "1px rgba(0,0,0,0.10)",
+              textShadow:
+                "none",
             }}
           >
-            {tagText}
+            {primaryText}
           </div>
-        ) : null}
+        </div>
       </div>
 
       {showPresetLabel ? (

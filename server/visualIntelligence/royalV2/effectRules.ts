@@ -85,16 +85,10 @@ function lowerThirdCopy(
   const labels = royalOnScreenLabels(
     exact || scene.mainPerson || scene.specificPlace || beat?.exactSubject || beat?.mustMatchEntity
   );
-  const place = cleanOnScreen(scene.specificPlace || beat?.mentionedPlaces?.[0] || "", 4);
   const primaryText = labels.primary || cleanOnScreen(exact, 5);
-  let secondaryText = labels.secondary;
-  if (!secondaryText && place && place !== primaryText) secondaryText = place;
-  if (/ROYAL\s*V\s*2|ROYAL DOCUMENTARY|EXACT PERSON|CONTEXT/i.test(secondaryText)) {
-    secondaryText = "";
-  }
   return {
     primaryText,
-    secondaryText,
+    secondaryText: "",
     tagText: "",
   };
 }

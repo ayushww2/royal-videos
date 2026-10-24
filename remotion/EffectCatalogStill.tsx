@@ -1,5 +1,12 @@
 import React from "react";
-import { AbsoluteFill, Img, staticFile } from "remotion";
+import {
+  AbsoluteFill,
+  Img,
+  interpolate,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
 import {
   productionPresetRegistry,
   type ProductionPresetId,
@@ -34,6 +41,10 @@ const demoSlides = [
 
 export type EffectCatalogStillProps = {
   presetId: ProductionPresetId;
+  backgroundPath?: string;
+  primaryText?: string;
+  secondaryText?: string;
+  locationTag?: string;
 };
 
 const OVERLAY_PRESETS = new Set<string>([
@@ -43,12 +54,18 @@ const OVERLAY_PRESETS = new Set<string>([
   "29_classic_purple_white_lower_third",
 ]);
 
-function demoPropsFor(presetId: ProductionPresetId): Record<string, unknown> {
+function demoPropsFor(
+  presetId: ProductionPresetId,
+  copy: Pick<
+    EffectCatalogStillProps,
+    "primaryText" | "secondaryText" | "locationTag"
+  > = {}
+): Record<string, unknown> {
   switch (presetId) {
     case "01_classic_blue_white_lower_third":
       return {
-        primaryText: "DR. ROBERT HAYES",
-        secondaryText: "MARINE ARCHAEOLOGIST",
+        primaryText: copy.primaryText ?? "DR. ROBERT HAYES",
+        secondaryText: copy.secondaryText ?? "",
         durationFrames: 120,
         showPresetLabel: false,
       };
@@ -68,9 +85,10 @@ function demoPropsFor(presetId: ProductionPresetId): Record<string, unknown> {
       };
     case "29_classic_purple_white_lower_third":
       return {
-        primaryText: "QUEEN ELIZABETH II",
-        secondaryText: "CORONATION ARCHIVE",
-        locationTag: "LONDON",
+        primaryText: copy.primaryText ?? "QUEEN ELIZABETH II",
+        secondaryText: copy.secondaryText ?? "",
+        locationTag: copy.locationTag ?? "",
+        durationFrames: 120,
         showPresetLabel: false,
       };
     case "15_quote_only":
@@ -143,7 +161,13 @@ function demoPropsFor(presetId: ProductionPresetId): Record<string, unknown> {
  */
 export const EffectCatalogStill: React.FC<EffectCatalogStillProps> = ({
   presetId,
+  backgroundPath,
+  primaryText,
+  secondaryText,
+  locationTag,
 }) => {
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
   const Component = productionPresetRegistry[presetId];
   if (!Component) {
     return (
@@ -162,16 +186,41 @@ export const EffectCatalogStill: React.FC<EffectCatalogStillProps> = ({
     );
   }
 
-  const props = demoPropsFor(presetId);
+  const props = demoPropsFor(presetId, {
+    primaryText,
+    secondaryText,
+    locationTag,
+  });
   const needsBg = OVERLAY_PRESETS.has(presetId);
+  const background = backgroundPath ? staticFile(backgroundPath) : demo.roadblock;
+  const backgroundScale = interpolate(
+    frame,
+    [0, Math.max(1, durationInFrames - 1)],
+    [1.01, 1.055],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#0a0c10" }}>
       {needsBg ? (
-        <Img
-          src={demo.roadblock}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
+        <>
+          <Img
+            src={background}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              transform: `scale(${backgroundScale})`,
+              filter: "contrast(1.04) saturate(0.96) brightness(0.9)",
+            }}
+          />
+          <AbsoluteFill
+            style={{
+              background:
+                "linear-gradient(180deg, transparent 45%, rgba(3,8,18,0.3) 100%)",
+            }}
+          />
+        </>
       ) : null}
       <Component {...props} />
     </AbsoluteFill>
