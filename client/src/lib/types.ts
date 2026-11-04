@@ -87,6 +87,8 @@ export interface JobRecord {
     runpodRunId?: string;
     progressPercent?: number;
     message?: string;
+    delivered?: boolean;
+    deliveredAt?: string;
   };
   timelineLock?: {
     locked: boolean;

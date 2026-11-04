@@ -79,6 +79,27 @@ export function AppShell({
               </Link>
             );
           })}
+          {loc.pathname === "/jobs" &&
+            (
+              [
+                ["past", "Past jobs"],
+                ["ready", "Ready jobs"],
+                ["done", "Done jobs"],
+                ["finalized", "Finalized jobs"],
+              ] as const
+            ).map(([id, label]) => {
+              const selected = (new URLSearchParams(loc.search).get("tab") || "ready") === id;
+              return (
+                <Link
+                  key={id}
+                  to={`/jobs?tab=${id}`}
+                  className={selected ? "active" : ""}
+                  style={{ paddingLeft: 22 }}
+                >
+                  {label}
+                </Link>
+              );
+            })}
           {jobId && (
             <>
               <div className="dim nav-section-label">Current job</div>
