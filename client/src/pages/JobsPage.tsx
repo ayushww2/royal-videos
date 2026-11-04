@@ -65,15 +65,21 @@ export function JobsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const tabJobs = useMemo(() => jobs.filter((job) => jobTab(job) === tab), [jobs, tab]);
+
   const days = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const job of jobs) {
+    for (const job of tabJobs) {
       const key = submittedDay(job.createdAt);
       if (!key) continue;
       counts.set(key, (counts.get(key) || 0) + 1);
     }
     return [...counts.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [jobs]);
+  }, [tabJobs]);
+
+  useEffect(() => {
+    if (day !== "all" && !days.some(([key]) => key === day)) setDay("all");
+  }, [day, days]);
 
   const visible = useMemo(() => {
     const filtered = jobs.filter((job) => jobTab(job) === tab && (day === "all" || submittedDay(job.createdAt) === day));
@@ -149,7 +155,7 @@ export function JobsPage() {
             <div className="field" style={{ maxWidth: 360, marginBottom: 12 }}>
               <label htmlFor="job-day">Date</label>
               <select id="job-day" value={day} onChange={(e) => setDay(e.target.value)}>
-                <option value="all">All dates ({jobs.length})</option>
+                <option value="all">All dates ({tabJobs.length})</option>
                 {days.map(([key, count]) => (
                   <option key={key} value={key}>
                     {dayOptionLabel(key)} ({count})
