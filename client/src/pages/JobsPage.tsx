@@ -5,7 +5,7 @@ import { ErrorState, LoadingState, StatusBadge } from "../components/Badges";
 import { api, formatDate } from "../lib/api";
 import { JobRecord, friendlyStatus } from "../lib/types";
 
-type JobTab = "past" | "ready" | "done" | "finalized";
+type JobTab = "past" | "ready" | "done";
 
 function submittedDay(iso?: string): string {
   if (!iso) return "";
@@ -37,11 +37,10 @@ function watchUrl(job: JobRecord): string {
   return job.render?.outputUrl || job.render?.shotstackUrl || "";
 }
 
-/** Done is a finished render that was marked delivered. Finalized is the lock. Ready is scene review. Past is everything still in the pipeline. */
+/** Ready is Royal's finalized/locked state. Done is a completed render marked delivered. Past is every other job. */
 export function jobTab(job: JobRecord): JobTab {
   if (job.render?.status === "completed" && job.render.delivered === true) return "done";
-  if (job.status === "finalized" || job.timelineLock?.locked) return "finalized";
-  if (job.status === "scene_review_ready" || job.status === "ready_for_scene_review") return "ready";
+  if (job.status === "finalized" || job.timelineLock?.locked) return "ready";
   return "past";
 }
 
@@ -53,10 +52,7 @@ export function JobsPage() {
   const [sort, setSort] = useState<"oldest" | "newest">("oldest");
   const [params] = useSearchParams();
   const requested = params.get("tab");
-  const tab: JobTab =
-    requested === "past" || requested === "done" || requested === "finalized" || requested === "ready"
-      ? requested
-      : "ready";
+  const tab: JobTab = requested === "past" || requested === "done" || requested === "ready" ? requested : "ready";
 
   async function load() {
     const data = await api<{ jobs: JobRecord[] }>("/api/jobs");
