@@ -1429,6 +1429,49 @@ app.post("/api/jobs/:jobId/scenes/:sceneId/split", async (req, res) => {
   res.json({ ok: true, scenes: scenes.length, created: created.map((scene) => scene.sceneId) });
 });
 
+app.post("/api/jobs/backup-job-files", async (req, res) => {
+  try {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backupDir = path.join(config.dataPath, "backups", "job-tabs", stamp);
+    await fs.mkdir(backupDir, { recursive: true });
+    const jobsDir = path.join(config.storagePath, "jobs");
+    const names = await fs.readdir(jobsDir);
+    let copied = 0;
+    for (const name of names) {
+      const source = path.join(jobsDir, name);
+      const stat = await fs.stat(source);
+      if (!stat.isDirectory()) continue;
+      await fs.cp(source, path.join(backupDir, name), { recursive: true });
+      copied += 1;
+    }
+    res.json({ ok: true, backupDir, jobs: copied });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/jobs/:jobId/delivery", async (req, res) => {
+  const job = await loadJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  const delivered = req.body?.delivered === true;
+  job.render = job.render || { status: "idle" };
+  if (delivered) {
+    if (job.render.status !== "completed") {
+      return res.status(400).json({ error: "Only a completed render can be marked delivered" });
+    }
+    job.render.delivered = true;
+    job.render.deliveredAt = new Date().toISOString();
+  } else {
+    delete job.render.delivered;
+    delete job.render.deliveredAt;
+  }
+  job.updatedAt = new Date().toISOString();
+  await saveJob(job);
+  res.json({ ok: true, render: job.render });
+});
+
 app.post("/api/jobs/:jobId/approve-all", async (req, res) => {
   const job = await loadJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });

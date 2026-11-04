@@ -144,6 +144,9 @@ export interface JobRecord {
     runpodRunId?: string;
     progressPercent?: number;
     message?: string;
+    /** Set only when a finished render is marked delivered. Absent on older jobs. */
+    delivered?: boolean;
+    deliveredAt?: string;
   };
   timelineLock?: {
     locked: boolean;
