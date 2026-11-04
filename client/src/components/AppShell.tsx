@@ -85,7 +85,6 @@ export function AppShell({
                 ["past", "Past jobs"],
                 ["ready", "Ready jobs"],
                 ["done", "Done jobs"],
-                ["finalized", "Finalized jobs"],
               ] as const
             ).map(([id, label]) => {
               const selected = (new URLSearchParams(loc.search).get("tab") || "ready") === id;
