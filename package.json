@@ -13,6 +13,7 @@
     "start": "tsx server/index.ts",
     "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p client/tsconfig.json --noEmit",
     "typecheck:remotion": "tsc -p remotion/tsconfig.json --noEmit",
+    "royal:footage-still": "tsx scripts/generate-royal-footage-still.ts",
     "test:royal-v2": "tsx scripts/royal-v2-bulk-smoke.ts",
     "test:royal-v2:long": "tsx scripts/royal-v2-bulk-smoke.ts --long",
     "library:prune-royal-portraits": "tsx scripts/prune-royal-sole-portraits.ts",

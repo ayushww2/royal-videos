@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import fs from "node:fs/promises";
 import type { Express } from "express";
 import { loadJob, readJson, saveJob, jobDataFile } from "../../storage.js";
 import type {
@@ -9,6 +10,11 @@ import type {
 import { handleRoyalV2Assistant } from "./assistant.js";
 import { lockRoyalV2Timeline, unlockRoyalV2Timeline } from "./lock.js";
 import { royalAssetPreviewUrl, searchRoyalLibrary } from "./library.js";
+import {
+  generateRoyalFootageStill,
+  royalFootageRecipe,
+  royalFootageReportPath,
+} from "./footageStills.js";
 import {
   enqueueRoyalV2Job,
   listRoyalV2Batches,
@@ -164,6 +170,32 @@ export function registerRoyalV2Routes(app: Express): void {
       res.json({ ok: true });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.get("/api/royal-v2/footage-stills/recipe", (_req, res) => {
+    res.json(royalFootageRecipe());
+  });
+
+  app.post("/api/royal-v2/footage-stills", async (req, res) => {
+    try {
+      const result = await generateRoyalFootageStill({
+        person: req.body?.person ? String(req.body.person) : undefined,
+        place: req.body?.place ? String(req.body.place) : undefined,
+        action: req.body?.action ? String(req.body.action) : undefined,
+        prompt: req.body?.prompt ? String(req.body.prompt) : undefined,
+        filename: req.body?.filename ? String(req.body.filename) : undefined,
+      });
+      const reportPath = royalFootageReportPath(result.image.outputPath);
+      await fs.writeFile(
+        reportPath,
+        JSON.stringify({ ...result, createdAt: new Date().toISOString() }, null, 2)
+      );
+      res.json({ ok: true, ...result, reportPath });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status = /401|402|paid_plan_required|not set/i.test(message) ? 402 : 500;
+      res.status(status).json({ error: message });
     }
   });
 
